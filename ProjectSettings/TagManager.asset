@@ -1,0 +1,66 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Solid
+  - Enemy
+  - Checkpoint
+  - Exit
+  - Chunk
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - Player
+  - Chunk
+  - Solid
+  - Enemy
+  - AutoTrigger
+  - ManualTrigger
+  - Damage
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Background
+    uniqueID: 2271809427
+    locked: 0
+  - name: Environment
+    uniqueID: 1163626987
+    locked: 0
+  - name: Characters
+    uniqueID: 3531768303
+    locked: 0
+  - name: Effects
+    uniqueID: 2116387043
+    locked: 0
+  - name: Foreground
+    uniqueID: 1887718753
+    locked: 0
+  - name: UI
+    uniqueID: 1734619247
+    locked: 0
