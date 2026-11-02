@@ -161,7 +161,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4674443373804062545}
   - component: {fileID: 514734143785237497}
-  m_Layer: 6
+  m_Layer: 13
   m_Name: Trigger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -229,6 +229,8 @@ GameObject:
   - component: {fileID: 1321399212581310594}
   - component: {fileID: 4138345779016227513}
   - component: {fileID: 2479189628803634129}
+  - component: {fileID: 6672198822798474703}
+  - component: {fileID: 8472190318771644040}
   - component: {fileID: 5036090318771644040}
   m_Layer: 6
   m_Name: Player
@@ -269,6 +271,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 5
   jumpVelocity: 8
+  isHorizontalInputInverted: 0
+  verticalFacingSpeedThreshold: 0
+  facingDirection: 1
   groundCheckOffset: {x: 0, y: -0.55}
   groundCheckSize: {x: 0.8, y: 0.1}
   groundLayer:
@@ -286,6 +291,40 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dacc832ae3e09041840482660e0f965, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &6672198822798474703
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7767663760128732614}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dc1a25466c7f35448b25a378e13b30e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  currentChunk: {fileID: 0}
+  currentChunkCenter: {x: 0, y: 0}
+--- !u!114 &8472190318771644040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7767663760128732614}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f3d7f64b7f04e88a5726d3b8b09c5a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerMovement: {fileID: 4138345779016227513}
+  playerChunkTracker: {fileID: 6672198822798474703}
+  currentState: 0
+  selectedChunk: {fileID: 0}
+  selectedAvailableChunkIndex: 0
+  placementRotation: 0
+  placementMirrored: 0
+  interactionColorAlpha: 0.2
 --- !u!50 &5036090318771644040
 Rigidbody2D:
   serializedVersion: 4
@@ -309,7 +348,7 @@ Rigidbody2D:
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
