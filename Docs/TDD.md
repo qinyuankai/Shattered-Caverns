@@ -271,3 +271,59 @@ Chunk
 ### 9.资源加载和管理
 
 ### 10.测试与调试方式
+
+## 七、全局流程与 UI
+
+### 1.资源与启动
+
+- `Assets/Scenes/MainMenu.unity` 为构建列表首场景，原玩法场景仍为 `Assets/Scenes/URP2DSceneTemplate.unity`。
+- `Assets/Resources/GameApplication.prefab` 包含 `GameFlowController`、两个音频播放器、EventSystem 与 uGUI Canvas。
+- `GameFlowController` 在场景加载前实例化该 Prefab，并使用 `DontDestroyOnLoad` 保留；不需要在每个关卡重复放置管理器。
+- 同一 Prefab 内的 UI、音频与流程引用均序列化绑定。关卡中的玩家与交互组件在场景加载后查找。
+- UI 采用 uGUI 和 TextMeshPro。Canvas 使用 1600×900 参考分辨率与 Scale With Screen Size。
+- 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
+- `CavernsPipeline.asset` 和 `CavernsRenderer2D.asset` 为缺失管线引用的替代配置，使用 URP 2D Renderer；没有调整 Layer、Tag 或物理矩阵。
+
+### 2.关卡配置
+
+- `Assets/Settings/GameConfiguration.asset` 保存菜单场景路径和有序关卡列表。
+- 每项包含稳定且唯一的 `id`、显示名称、完整场景路径与音乐资源。
+- ID 用于存档，后续不要随意更名；关卡顺序决定下一关与解锁顺序。
+- 新增关卡时同时加入此配置与 Build Settings，并保留原场景 GUID。
+- 当前仅配置真实存在的测试关卡，没有占位的虚构关卡。
+
+### 3.流程入口
+
+- `GameFlowController.Instance.CompleteLevel()`：仅在 Playing 状态记录通关，解锁下一关并显示结束界面；重复调用不重复记录。
+- `FailLevel()`：仅在 Playing 状态进入失败界面，不写入通关记录。
+- `RestartLevel()`：异步重新加载当前关卡，重置场景运行状态。
+- `LoadLevel(string levelId)`：只加载已解锁且已加入构建列表的关卡。
+- `LoadNextLevel()`、`ReturnToMainMenu()`、`StartGame()`、`ContinueGame()` 提供流程入口。
+- `LevelFlowEvents` 可挂到出口或机关对象，通过 UnityEvent 绑定其公开通关、失败、重开方法。该组件本身不判断碰撞或通关条件。
+- 场景切换时取消当前区块预览、禁用移动输入，使用不受 Time.timeScale 影响的淡入淡出，加载期间屏蔽重复加载请求。
+
+### 4.暂停与输入
+
+- 全局状态包含 MainMenu、Playing、Paused、Completed、Failed 和 Loading。
+- 菜单暂停保留区块交互状态；继续时根据交互状态决定恢复时间还是保持零时间。
+- `PlayerChunkInteraction.Update` 在全局流程阻止输入时不读取操作键。
+- 新增 `CancelCurrentInteraction()` 接口，在通关、失败和切换场景前复用原有取消逻辑恢复预览与摄像机。
+- HUD 只读现有 `LevelManager` 与 `PlayerChunkInteraction`，不持有第二份背包／区块数据。
+
+### 5.本地记录与音频
+
+- `GameSaveStore` 使用独立的 PlayerPrefs 键 `ShatteredCaverns.Progress.v1` 保存版本化 JSON。
+- 保存稳定关卡 ID 列表、最近关卡和三个音量值；损坏 JSON 或不支持的版本回退为初始数据。
+- 返回设置、切换场景、通关、应用暂停与退出时写盘。
+- 不记录玩家位置、碎片实例、区块变换或音乐播放时间；重开使用场景初始状态。
+- `GameAudioPlayer` 管理独立的 MusicPlayer 与 SoundPlayer，实际音量为主音量乘对应通道音量。
+- 配置中的菜单音乐、各关卡音乐、按钮／通关／失败音效可在 Inspector 指定；当前没有正式音频素材，允许为空。
+- `PlayMusic(AudioClip)` 与 `PlaySound(AudioClip)` 可供玩法对象调用；相同背景音乐不会因为重复请求而从头播放。
+
+### 6.Editor 工具与验证
+
+- `Tools > Shattered Caverns > Build Game Interface` 使用 Unity API 生成初始资源，已有 GameApplication 时拒绝覆盖；正常开发直接编辑现有 Prefab。
+- `Tools > Shattered Caverns > Validate Game Flow` 在 Play Mode 中验证主菜单、设置保存、场景重载、暂停、区块操作暂停、结束界面、音频与继续游戏。
+- 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
+- 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
+- 当前 macOS Editor 流程验证通过 28 项检查，并检查所有项目 Prefab 无 Missing Script；尚未验证 Windows 构建或正式音频听感。

@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c53147fb837c4fe99b228dc7f4d0d9d, type: 3}
+  m_Name: GameConfiguration
+  m_EditorClassIdentifier: 
+  mainMenuScenePath: Assets/Scenes/MainMenu.unity
+  levels:
+  - id: cavern-01
+    displayName: "\u521D\u63A2\u6D1E\u7A9F"
+    scenePath: Assets/Scenes/URP2DSceneTemplate.unity
+    music: {fileID: 0}
+  menuMusic: {fileID: 0}
+  buttonSound: {fileID: 0}
+  completeSound: {fileID: 0}
+  failureSound: {fileID: 0}
+  transitionDuration: 0.25
