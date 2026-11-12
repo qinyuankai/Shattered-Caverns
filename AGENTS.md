@@ -19,6 +19,22 @@
 
 ```text
 Assets/
+├── Art/
+│   ├── Characters/
+│   │   ├── Player/
+│   │   └── Enemies/
+│   ├── Chunks/
+│   │   ├── Tiles/
+│   │   ├── Backgrounds/
+│   │   └── Decorations/
+│   ├── Items/
+│   │   ├── Fragments/
+│   │   ├── Collectibles/
+│   │   └── Keys/
+│   ├── Effects/
+│   ├── UI/
+│   ├── Backgrounds/
+│   └── References/
 ├── Scripts/
 │   ├── Character/
 │   ├── Chunk/
@@ -37,6 +53,20 @@ Docs/
 ```
 
 - 脚本按照职责放入现有的 `Character`、`Chunk`、`Items` 和 `Levels` 目录。
+- `Art` 只存放美术源文件和参考图，不存放 Prefab、Tile、Tile Palette 或其他 Unity 功能配置资源。
+- `Art/Characters/Player` 存放玩家角色的 Sprite、动画帧和角色相关美术资源。
+- `Art/Characters/Enemies` 存放敌人角色的 Sprite、动画帧和敌人相关美术资源。
+- `Art/Chunks/Tiles` 存放区块地面、墙体等 Tile 使用的源图片。
+- `Art/Chunks/Backgrounds` 存放区块内部使用的背景图片或背景 Sprite。
+- `Art/Chunks/Decorations` 存放区块内部的装饰性美术资源。
+- `Art/Items/Fragments` 存放区块碎片相关美术资源。
+- `Art/Items/Collectibles` 存放一般收藏品相关美术资源。
+- `Art/Items/Keys` 存放钥匙类道具相关美术资源。
+- `Art/Effects` 存放粒子、闪光、冲击等视觉特效资源。
+- `Art/UI` 存放界面图标、按钮、面板和其他用户界面美术资源。
+- `Art/References` 存放角色设计图、风格参考图和其他仅供开发参考的图片，不作为游戏运行资源使用。
+- 全局摄像机背景图片放入 `Art/Backgrounds`；区块内部背景放入 `Art/Chunks/Backgrounds`。如果使用摄像机纯色背景，则直接配置 Camera，不创建图片资源。
+- `Tile`、`Tile Palette`、物理材质、渲染设置等 Unity 功能配置资源放入 `Settings`，不放入 `Art`。
 - 当前预制体数量较少，暂不进一步分类；数量增加后再分类。
 - 当前场景只有一个，暂不进一步分类；场景增加后再按关卡或用途分类。
 - 当前其他游戏资源数量较少，暂不建立更细的资源分类；后续需要时再定义。
