@@ -158,6 +158,8 @@ public static class GameFlowValidation
                     initialPosition = UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position;
                     flow.PauseGame();
                     Require(flow.State == GameFlowState.Paused && Time.timeScale == 0, "Pause freezes gameplay");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
+                        == ui.transform.Find("PausePanel/ResumeButton").gameObject, "Pause focuses Resume");
                     ui.OpenSettings(); ui.Back();
                     Require(flow.State == GameFlowState.Paused && Time.timeScale == 0, "Settings return preserves pause");
                     flow.ResumeGame();
@@ -166,6 +168,8 @@ public static class GameFlowValidation
                     TriggerFlow(LevelFlowTriggerAction.FailLevel);
                     Require(flow.State == GameFlowState.Failed && Time.timeScale == 0
                         && Get<GameObject>(ui, "resultPanel").activeSelf, "Failure shows result and freezes gameplay");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
+                        == ui.transform.Find("ResultPanel/RetryButton").gameObject, "Failure focuses Retry");
                     flow.CompleteLevel();
                     Require(!flow.SaveStore.IsCompleted(flow.CurrentLevel.id), "Completion cannot overwrite failure");
                     UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position = new Vector3(99, 99, 0);
@@ -179,9 +183,13 @@ public static class GameFlowValidation
                     flow.CompleteLevel(); flow.FailLevel();
                     Require(flow.State == GameFlowState.Completed && flow.SaveStore.IsCompleted(flow.CurrentLevel.id), "Completion is idempotent and saves progress");
                     Require(!Get<Button>(ui, "nextLevelButton").gameObject.activeSelf, "Final level hides next-level button");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
+                        == ui.transform.Find("ResultPanel/RetryButton").gameObject, "Final completion focuses Retry");
                     Click(ui, "ResultPanel/MenuButton"); step++; break;
                 case 3:
                     Require(flow.State == GameFlowState.MainMenu, "Return to menu succeeds");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
+                        == ui.transform.Find("MainMenuPanel/StartButton").gameObject, "Main menu focuses Start");
                     Require(Get<Button>(ui, "continueButton").interactable, "Saved level enables Continue");
                     Require(Mathf.Approximately(flow.AudioPlayer.MasterVolume, 0.4f), "Audio settings survive scene changes");
                     Click(ui, "MainMenuPanel/ContinueButton"); step++; break;
