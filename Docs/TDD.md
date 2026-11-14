@@ -315,6 +315,7 @@ Chunk
 
 - `GameSaveStore` 使用独立的 PlayerPrefs 键 `ShatteredCaverns.Progress.v1` 保存版本化 JSON。
 - 保存稳定关卡 ID 列表、最近关卡和三个音量值；损坏 JSON 或不支持的版本回退为初始数据。
+- 读取存档时删除配置中已不存在或重复的关卡 ID，已完成关卡保持解锁，无效最近关卡被清空，修正结果会写回 PlayerPrefs。
 - 返回设置、切换场景、通关、应用暂停与退出时写盘。
 - 不记录玩家位置、碎片实例、区块变换或音乐播放时间；重开使用场景初始状态。
 - `GameAudioPlayer` 管理独立的 MusicPlayer 与 SoundPlayer，实际音量为主音量乘对应通道音量。

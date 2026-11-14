@@ -62,6 +62,7 @@ public static class GameFlowValidation
             if (scene.enabled) enabledScenes.Add(scene.path);
 
         RequireScene(configuration.MainMenuScenePath, "Main menu", enabledScenes);
+        if (configuration.Levels.Count == 0) throw new Exception("Game configuration must contain at least one level");
         var ids = new HashSet<string>();
         var scenePaths = new HashSet<string>();
         foreach (GameLevelDefinition level in configuration.Levels)
@@ -125,6 +126,7 @@ public static class GameFlowValidation
                 case 0:
                     Require(flow.State == GameFlowState.MainMenu, "Main menu bootstraps persistent application");
                     Require(!Get<Button>(ui, "continueButton").interactable, "Continue is disabled without progress");
+                    TestSaveNormalization(flow);
                     ui.OpenLevelSelect();
                     Require(Get<GameObject>(ui, "levelSelectPanel").activeSelf, "Level selection opens");
                     ui.Back();
@@ -206,6 +208,34 @@ public static class GameFlowValidation
             "Pause/resume retains chunk operation pause");
         interaction.CancelCurrentInteraction();
         Require(Time.timeScale == 1, "Cancelling chunk operation restores time");
+    }
+
+    private static void TestSaveNormalization(GameFlowController flow)
+    {
+        string validId = flow.Configuration.Levels[0].id;
+        var data = new GameSaveData
+        {
+            lastLevelId = "removed-level",
+            unlockedLevelIds = new List<string> { "removed-level", validId, validId },
+            completedLevelIds = new List<string> { "removed-level", validId, validId },
+            masterVolume = 2f,
+            musicVolume = -1f,
+            soundVolume = 0.5f
+        };
+        PlayerPrefs.SetString(GameSaveStore.SaveKey, JsonUtility.ToJson(data));
+        PlayerPrefs.Save();
+
+        GameSaveStore normalized = new GameSaveStore(flow.Configuration);
+        GameSaveStore reloaded = new GameSaveStore(flow.Configuration);
+        Require(normalized.Data.lastLevelId == null
+            && normalized.Data.unlockedLevelIds.Count == 1 && normalized.IsUnlocked(validId)
+            && normalized.Data.completedLevelIds.Count == 1 && normalized.IsCompleted(validId)
+            && reloaded.Data.unlockedLevelIds.Count == 1 && reloaded.Data.completedLevelIds.Count == 1
+            && Mathf.Approximately(reloaded.Data.masterVolume, 1f)
+            && Mathf.Approximately(reloaded.Data.musicVolume, 0f)
+            && Mathf.Approximately(reloaded.Data.soundVolume, 0.5f),
+            "Outdated save data is normalized and persisted");
+        flow.SaveStore.Save();
     }
 
     private static void TestAudio(GameFlowController flow)
