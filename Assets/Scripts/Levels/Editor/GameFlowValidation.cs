@@ -32,6 +32,7 @@ public static class GameFlowValidation
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        ValidateConfiguration();
         foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets" }))
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
@@ -49,6 +50,38 @@ public static class GameFlowValidation
         PlayerPrefs.Save();
         EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
         EditorApplication.isPlaying = true;
+    }
+
+    private static void ValidateConfiguration()
+    {
+        GameConfiguration configuration = AssetDatabase.LoadAssetAtPath<GameConfiguration>("Assets/Settings/GameConfiguration.asset");
+        if (configuration == null) throw new Exception("Missing Assets/Settings/GameConfiguration.asset");
+
+        var enabledScenes = new HashSet<string>();
+        foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)
+            if (scene.enabled) enabledScenes.Add(scene.path);
+
+        RequireScene(configuration.MainMenuScenePath, "Main menu", enabledScenes);
+        var ids = new HashSet<string>();
+        var scenePaths = new HashSet<string>();
+        foreach (GameLevelDefinition level in configuration.Levels)
+        {
+            if (level == null) throw new Exception("Game configuration contains an empty level entry");
+            if (string.IsNullOrWhiteSpace(level.id)) throw new Exception("Level ID cannot be empty");
+            if (!ids.Add(level.id)) throw new Exception("Duplicate level ID: " + level.id);
+            if (string.IsNullOrWhiteSpace(level.displayName)) throw new Exception("Level display name cannot be empty: " + level.id);
+            if (!scenePaths.Add(level.scenePath)) throw new Exception("Duplicate level scene: " + level.scenePath);
+            RequireScene(level.scenePath, "Level " + level.id, enabledScenes);
+        }
+    }
+
+    private static void RequireScene(string path, string label, HashSet<string> enabledScenes)
+    {
+        if (string.IsNullOrWhiteSpace(path)) throw new Exception(label + " scene path cannot be empty");
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(path) == null)
+            throw new Exception(label + " scene does not exist: " + path);
+        if (!enabledScenes.Contains(path))
+            throw new Exception(label + " scene is not enabled in Build Settings: " + path);
     }
 
     private static void OnPlayModeChanged(PlayModeStateChange state)
