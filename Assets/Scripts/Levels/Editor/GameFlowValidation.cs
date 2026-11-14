@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -129,6 +130,10 @@ public static class GameFlowValidation
                     TestSaveNormalization(flow);
                     ui.OpenLevelSelect();
                     Require(Get<GameObject>(ui, "levelSelectPanel").activeSelf, "Level selection opens");
+                    Transform levelList = Get<Transform>(ui, "levelList");
+                    TMP_Text levelLabel = levelList.GetChild(0).GetComponentInChildren<TMP_Text>();
+                    Require(levelLabel.text.Contains("·  可探索") && !levelLabel.text.Contains("   "),
+                        "Level selection uses responsive status text");
                     ui.Back();
                     ClickPointer(ui, "MainMenuPanel/SettingsButton");
                     Require(Get<GameObject>(ui, "settingsPanel").activeSelf, "Pointer raycast and click open settings");

@@ -15,7 +15,7 @@ public class LevelSelectButton : MonoBehaviour
         levelId = level.id;
         bool unlocked = flow.SaveStore.IsUnlocked(levelId);
         string status = flow.SaveStore.IsCompleted(levelId) ? "已通关" : unlocked ? "可探索" : "未解锁";
-        label.text = $"{number:00}   {level.displayName}                         {status}";
+        label.text = $"{number:00}  {level.displayName}  ·  {status}";
         button.interactable = unlocked;
         button.onClick.RemoveListener(Load);
         button.onClick.AddListener(Load);
