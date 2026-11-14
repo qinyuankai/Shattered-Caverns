@@ -134,9 +134,13 @@ public static class GameFlowValidation
                     TMP_Text levelLabel = levelList.GetChild(0).GetComponentInChildren<TMP_Text>();
                     Require(levelLabel.text.Contains("·  可探索") && !levelLabel.text.Contains("   "),
                         "Level selection uses responsive status text");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == levelList.GetChild(0).gameObject,
+                        "Level selection focuses the first level");
                     ui.Back();
                     ClickPointer(ui, "MainMenuPanel/SettingsButton");
                     Require(Get<GameObject>(ui, "settingsPanel").activeSelf, "Pointer raycast and click open settings");
+                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == Get<Slider>(ui, "masterSlider").gameObject,
+                        "Settings focus the master volume slider");
                     Get<Slider>(ui, "masterSlider").value = 0.4f;
                     Get<Slider>(ui, "musicSlider").value = 0.3f;
                     Get<Slider>(ui, "soundSlider").value = 0.2f;

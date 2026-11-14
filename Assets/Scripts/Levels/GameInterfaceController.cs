@@ -165,9 +165,16 @@ public class GameInterfaceController : MonoBehaviour
         ClickSound();
         foreach (Transform child in levelList) Destroy(child.gameObject);
         int number = 1;
+        Button firstLevelButton = null;
         foreach (GameLevelDefinition level in flow.Configuration.Levels)
-            Instantiate(levelButtonPrefab, levelList).Bind(flow, level, number++);
+        {
+            LevelSelectButton item = Instantiate(levelButtonPrefab, levelList);
+            item.Bind(flow, level, number++);
+            if (firstLevelButton == null) firstLevelButton = item.GetComponent<Button>();
+        }
         SetPanel(levelSelectPanel);
+        if (eventSystem != null && firstLevelButton != null)
+            eventSystem.SetSelectedGameObject(firstLevelButton.gameObject);
     }
 
     public void OpenSettings()
@@ -179,6 +186,7 @@ public class GameInterfaceController : MonoBehaviour
         soundSlider.SetValueWithoutNotify(flow.AudioPlayer.SoundVolume);
         RefreshVolumeLabels();
         SetPanel(settingsPanel);
+        if (eventSystem != null) eventSystem.SetSelectedGameObject(masterSlider.gameObject);
     }
 
     public void OpenPause()
