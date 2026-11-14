@@ -325,7 +325,7 @@ Chunk
 ### 6.Editor 工具与验证
 
 - `Tools > Shattered Caverns > Build Game Interface` 使用 Unity API 生成初始资源，已有 GameApplication 时拒绝覆盖；正常开发直接编辑现有 Prefab。
-- `Tools > Shattered Caverns > Validate Game Flow` 在 Play Mode 中验证主菜单、设置保存、场景重载、暂停、区块操作暂停、结束界面、音频与继续游戏。
+- `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置与 Build Settings，再在 Play Mode 中验证主菜单、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
 - 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
 - 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
-- 当前 macOS Editor 流程验证通过 28 项检查，并检查所有项目 Prefab 无 Missing Script；尚未验证 Windows 构建或正式音频听感。
+- 当前 macOS Editor 流程验证通过 36 项检查，并检查所有项目 Prefab 无 Missing Script；尚未验证 Windows 构建或正式音频听感。
