@@ -83,6 +83,16 @@ public static class GameInterfaceBuilder
             RectTransform pause = root.transform.Find("GameCanvas/GameHUD/PauseButton").GetComponent<RectTransform>();
             pause.anchorMin = pause.anchorMax = pause.pivot = Vector2.one;
             pause.anchoredPosition = new Vector2(-40, -30);
+            Transform art = root.transform.Find("GameCanvas/MainMenuPanel/CavernIllustration");
+            for (int i = 0; i < 9; i++)
+            {
+                Transform block = art.Find("CavernBlock" + i);
+                if (block == null) continue;
+                block.GetComponent<RectTransform>().anchoredPosition = new Vector2(780 + i % 3 * 142, -285 - i / 3 * 142);
+            }
+            RectTransform caption = art.Find("Caption").GetComponent<RectTransform>();
+            caption.anchoredPosition = new Vector2(780, -760);
+            caption.sizeDelta = new Vector2(350, 45);
             PrefabUtility.SaveAsPrefabAsset(root, path);
         }
         finally
@@ -262,7 +272,7 @@ public static class GameInterfaceBuilder
         Transform art = Panel(parent, "CavernIllustration", Color.clear).transform;
         for (int i = 0; i < 9; i++)
         {
-            float x = 950 + i % 3 * 142;
+            float x = 780 + i % 3 * 142;
             float y = -285 - i / 3 * 142;
             if (i == 2 || i == 6) continue;
             GameObject block = Panel(art, "CavernBlock" + i, i == 4 ? new Color(0.14f, 0.3f, 0.29f) : Surface);
@@ -276,7 +286,7 @@ public static class GameInterfaceBuilder
                 dot.transform.localRotation = Quaternion.Euler(0, 0, 45);
             }
         }
-        Text(art, "Caption", "碎片重组，前路重现。", new Vector2(950, -760), new Vector2(520, 45), 20, Muted, true);
+        Text(art, "Caption", "碎片重组，前路重现。", new Vector2(780, -760), new Vector2(350, 45), 20, Muted, true);
     }
 
     private static GameObject Page(Transform parent, string name, string title, string subtitle, UnityAction back)
