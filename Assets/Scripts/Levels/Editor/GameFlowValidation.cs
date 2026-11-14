@@ -152,7 +152,7 @@ public static class GameFlowValidation
                     flow.ResumeGame();
                     Require(flow.State == GameFlowState.Playing && Time.timeScale == 1, "Resume restores gameplay");
                     TestInteractionPause(flow);
-                    flow.FailLevel();
+                    TriggerFlow(LevelFlowTriggerAction.FailLevel);
                     Require(flow.State == GameFlowState.Failed && Time.timeScale == 0
                         && Get<GameObject>(ui, "resultPanel").activeSelf, "Failure shows result and freezes gameplay");
                     flow.CompleteLevel();
@@ -164,7 +164,8 @@ public static class GameFlowValidation
                     Require(flow.State == GameFlowState.Playing, "Retry reloads level");
                     Require(Vector3.Distance(UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position, initialPosition) < 3,
                         "Reload restores player spawn instead of retaining modified transform");
-                    flow.CompleteLevel(); flow.CompleteLevel(); flow.FailLevel();
+                    TriggerFlow(LevelFlowTriggerAction.CompleteLevel);
+                    flow.CompleteLevel(); flow.FailLevel();
                     Require(flow.State == GameFlowState.Completed && flow.SaveStore.IsCompleted(flow.CurrentLevel.id), "Completion is idempotent and saves progress");
                     Require(!Get<Button>(ui, "nextLevelButton").gameObject.activeSelf, "Final level hides next-level button");
                     Click(ui, "ResultPanel/MenuButton"); step++; break;
@@ -220,6 +221,23 @@ public static class GameFlowValidation
         flow.AudioPlayer.PlaySound(clip);
         flow.AudioPlayer.PlayMusic(null);
         UnityEngine.Object.Destroy(clip);
+    }
+
+    private static void TriggerFlow(LevelFlowTriggerAction action)
+    {
+        GameObject triggerObject = new GameObject("ValidationLevelFlowTrigger", typeof(BoxCollider2D), typeof(LevelFlowTrigger));
+        LevelFlowTrigger trigger = triggerObject.GetComponent<LevelFlowTrigger>();
+        typeof(LevelFlowTrigger).GetField("action", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(trigger, action);
+        Collider2D player = null;
+        foreach (Collider2D candidate in UnityEngine.Object.FindObjectOfType<PlayerMovement>().GetComponentsInChildren<Collider2D>())
+        {
+            if (candidate.isTrigger) continue;
+            player = candidate;
+            break;
+        }
+        if (player == null) throw new Exception("Player physical collider was not found");
+        typeof(LevelFlowTrigger).GetMethod("OnTriggerEnter2D", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(trigger, new object[] { player });
+        UnityEngine.Object.Destroy(triggerObject);
     }
 
     private static T Get<T>(object target, string name)

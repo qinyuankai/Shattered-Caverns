@@ -300,6 +300,7 @@ Chunk
 - `LoadLevel(string levelId)`：只加载已解锁且已加入构建列表的关卡。
 - `LoadNextLevel()`、`ReturnToMainMenu()`、`StartGame()`、`ContinueGame()` 提供流程入口。
 - `LevelFlowEvents` 可挂到出口或机关对象，通过 UnityEvent 绑定其公开通关、失败、重开方法。该组件本身不判断碰撞或通关条件。
+- `LevelFlowTrigger` 可挂到带 2D Trigger Collider 的出口或伤害区域，使用 Inspector 选择通关或失败；它只响应自身或所属刚体带 `Player` Tag 的碰撞体，默认只触发一次。
 - 场景切换时取消当前区块预览、禁用移动输入，使用不受 Time.timeScale 影响的淡入淡出，加载期间屏蔽重复加载请求。
 
 ### 4.暂停与输入
