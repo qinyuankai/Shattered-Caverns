@@ -281,6 +281,9 @@ Chunk
 - `GameFlowController` 在场景加载前实例化该 Prefab，并使用 `DontDestroyOnLoad` 保留；不需要在每个关卡重复放置管理器。
 - 同一 Prefab 内的 UI、音频与流程引用均序列化绑定。关卡中的玩家与交互组件在场景加载后查找。
 - UI 采用 uGUI 和 TextMeshPro。Canvas 使用 1600×900 参考分辨率与 Scale With Screen Size。
+- 主菜单背景使用 `Assets/Art/Backgrounds/MainMenuBackground.png`，按 Sprite (2D and UI) 导入，关闭 Mipmap 与纹理压缩，使用 Bilinear 过滤和 Clamp 包裹。
+- `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和左侧遮罩均关闭 Raycast Target，不阻挡菜单按钮。
+- 主菜单标题和按钮使用左上锚点排列；开始游戏为暖金色主按钮，其余功能使用深色次级按钮，现有 Button 事件保持序列化绑定。
 - 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
 - `CavernsPipeline.asset` 和 `CavernsRenderer2D.asset` 为缺失管线引用的替代配置，使用 URP 2D Renderer；没有调整 Layer、Tag 或物理矩阵。
 
@@ -325,6 +328,7 @@ Chunk
 ### 6.Editor 工具与验证
 
 - `Tools > Shattered Caverns > Build Game Interface` 使用 Unity API 生成初始资源，已有 GameApplication 时拒绝覆盖；正常开发直接编辑现有 Prefab。
+- `Tools > Shattered Caverns > Apply Main Menu Redesign`（macOS `Cmd+Shift+M`）通过 Unity API 配置背景导入并将主菜单视觉结构应用到现有 Prefab。
 - `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置与 Build Settings，再在 Play Mode 中验证主菜单、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
 - 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
 - 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
