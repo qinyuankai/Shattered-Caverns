@@ -288,6 +288,15 @@ public static class GameInterfaceBuilder
         root.GetComponent<LayoutElement>().preferredHeight = 76f;
         TextMeshProUGUI label = Text(root.transform, "Label", "", new Vector2(24, 0), new Vector2(660, 70), 23, White);
         label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.enableWordWrapping = false;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 18f;
+        ColorBlock colors = root.GetComponent<Button>().colors;
+        colors.highlightedColor = new Color(0.72f, 0.95f, 0.88f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = new Color(0.5f, 0.72f, 0.66f);
+        colors.disabledColor = Color.white;
+        root.GetComponent<Button>().colors = colors;
         LevelSelectButton view = root.AddComponent<LevelSelectButton>();
         Assign(view, "button", root.GetComponent<Button>());
         Assign(view, "label", label);
@@ -358,7 +367,7 @@ public static class GameInterfaceBuilder
         Assign(ui, "levelSelectPanel", levels);
         GameObject scrollObject = new GameObject("LevelScroll", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
         scrollObject.transform.SetParent(levels.transform, false);
-        Place(scrollObject.GetComponent<RectTransform>(), new Vector2(0, -35), new Vector2(780, 450));
+        Place(scrollObject.GetComponent<RectTransform>(), new Vector2(0, -35), new Vector2(860, 450));
         scrollObject.GetComponent<Image>().color = Color.clear;
         GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
         viewport.transform.SetParent(scrollObject.transform, false);
@@ -375,7 +384,7 @@ public static class GameInterfaceBuilder
         list.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         ScrollRect scroll = scrollObject.GetComponent<ScrollRect>();
         scroll.viewport = viewport.GetComponent<RectTransform>(); scroll.content = listRect;
-        scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 28f;
         Assign(ui, "levelList", list.transform);
 
         GameObject settings = Page(canvasObject.transform, "SettingsPanel", "声音设置", "调整你的洞窟声景。设置会自动保留。", ui.Back);

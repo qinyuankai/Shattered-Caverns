@@ -170,8 +170,11 @@ public class GameInterfaceController : MonoBehaviour
         {
             LevelSelectButton item = Instantiate(levelButtonPrefab, levelList);
             item.Bind(flow, level, number++);
-            if (firstLevelButton == null) firstLevelButton = item.GetComponent<Button>();
+            Button itemButton = item.GetComponent<Button>();
+            if (firstLevelButton == null && itemButton.interactable) firstLevelButton = itemButton;
         }
+        ScrollRect scroll = levelList.GetComponentInParent<ScrollRect>();
+        if (scroll != null) scroll.scrollSensitivity = 28f;
         SetPanel(levelSelectPanel);
         if (eventSystem != null && firstLevelButton != null)
             eventSystem.SetSelectedGameObject(firstLevelButton.gameObject);

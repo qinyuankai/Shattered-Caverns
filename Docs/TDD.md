@@ -284,6 +284,8 @@ Chunk
 - 主菜单背景使用 `Assets/Art/Backgrounds/MainMenuBackground.png`，按 Sprite (2D and UI) 导入，关闭 Mipmap 与纹理压缩，使用 Bilinear 过滤和 Clamp 包裹。
 - `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和左侧遮罩均关闭 Raycast Target，不阻挡菜单按钮。
 - 主菜单标题和按钮使用左上锚点排列；开始游戏为暖金色主按钮，其余功能使用深色次级按钮，现有 Button 事件保持序列化绑定。
+- 选关界面沿用主菜单的深色、青绿色与暖金色色板；关卡项显示两位编号、配置名称和状态，已通关使用暖金强调、可探索使用明亮文字、未解锁使用可读的低对比度文字且禁用交互。
+- 关卡列表由 `ScrollRect`、顶部锚定的内容节点和纵向布局组成，可随配置增加项目；打开页面时只在可交互项目中选择第一个作为键盘或手柄焦点。
 - 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
 - `CavernsPipeline.asset` 和 `CavernsRenderer2D.asset` 为缺失管线引用的替代配置，使用 URP 2D Renderer；没有调整 Layer、Tag 或物理矩阵。
 
