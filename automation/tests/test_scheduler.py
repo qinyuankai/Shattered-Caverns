@@ -8,7 +8,13 @@ from pathlib import Path
 from automation.codex_runner import build_codex_command, parse_usage
 from automation.common import load_config
 from automation.progress import parse_progress, update_progress
-from automation.scheduler import budget_allows_session, request_stop, select_next_batch, stop_path
+from automation.scheduler import (
+    budget_allows_session,
+    is_unity_environment_failure,
+    request_stop,
+    select_next_batch,
+    stop_path,
+)
 
 
 class ProgressTests(unittest.TestCase):
@@ -102,6 +108,11 @@ class BudgetAndCodexTests(unittest.TestCase):
             self.assertTrue(created.exists())
             stop_path(config).unlink()
             self.assertFalse(stop_path(config).exists())
+
+    def test_unity_licensing_failure_requires_manual_review(self) -> None:
+        log = "[Licensing::Module] IPC channel to LicensingClient doesn't exist; aborting"
+        self.assertTrue(is_unity_environment_failure(log, ""))
+        self.assertFalse(is_unity_environment_failure("Scripts have compiler errors", ""))
 
 
 class ConfigurationTests(unittest.TestCase):

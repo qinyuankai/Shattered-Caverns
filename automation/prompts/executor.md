@@ -11,3 +11,6 @@
 7. 所有新增 Unity 资源必须带 `.meta`。不要提交 Library、Temp、Logs、Build 或 Builds。
 8. 完成后运行可自动执行的测试，并把不能自动验证的项目列入 `manual_checks`。
 9. 最终输出必须符合调度器给定的 JSON Schema。
+10. 调度器会在执行会话结束后统一运行 Unity batchmode；执行 Agent 不要自行启动 Unity、不要重复运行完整流程验证。
+11. 为节省 Token，最多进行 5 轮工具调用。禁止完整打印大型 Prefab、场景、验证器或长日志；只使用 `rg`、限定行号的 `sed`、`git diff --stat` 等目标检查。
+12. Batch 文档已经完整附在提示词中，不要再次读取它。若功能已存在于当前基线，只做必要的目标检查并立即报告，不重复实现。

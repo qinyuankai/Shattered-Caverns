@@ -306,14 +306,19 @@ def run_deterministic_checks(
                     capture_output=True,
                     timeout=int(config["limits"]["unity_timeout_seconds"]),
                 )
+                log_text = unity_log.read_text(encoding="utf-8", errors="replace") if unity_log.exists() else ""
+                environment_failure = is_unity_environment_failure(log_text, completed.stderr)
+                unity_status = "pass" if completed.returncode == 0 else (
+                    "manual_required" if environment_failure else "fail"
+                )
                 result["unity"] = {
-                    "status": "pass" if completed.returncode == 0 else "fail",
+                    "status": unity_status,
                     "exit_code": completed.returncode,
                     "duration_seconds": round(time.monotonic() - started, 3),
                     "log": str(unity_log),
                     "stderr": completed.stderr[-2000:],
                 }
-                if completed.returncode != 0:
+                if completed.returncode != 0 and not environment_failure:
                     result["issues"].append("Unity batchmode 编译检查失败")
             except subprocess.TimeoutExpired:
                 result["unity"] = {"status": "fail", "reason": "Unity 编译检查超时", "log": str(unity_log)}
@@ -607,3 +612,15 @@ def _session_failure_text(session: dict[str, Any], result: dict[str, Any]) -> st
         f"Codex exit={session.get('exit_code')}, timeout={session.get('timed_out')}, "
         f"status={result.get('status')}, summary={result.get('summary', '')}"
     )
+
+
+def is_unity_environment_failure(log_text: str, stderr_text: str) -> bool:
+    combined = f"{log_text}\n{stderr_text}".lower()
+    markers = (
+        "licensing client ipc",
+        "unitylicensingclient",
+        "ipc channel to licensingclient doesn't exist",
+        "failed to connect to licenseclient",
+        "another unity instance is running with this project open",
+    )
+    return any(marker in combined for marker in markers)
