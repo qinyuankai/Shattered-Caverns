@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from automation.codex_runner import SessionResult, build_codex_command, parse_usage
 from automation.common import load_config
+from automation.git_ops import changed_files
 from automation.progress import parse_progress, update_progress
 from automation.scheduler import (
     budget_allows_session,
@@ -141,6 +143,22 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(config["limits"]["max_fix_retries"], 2)
         self.assertFalse(config["git"]["push"])
         self.assertFalse(config["git"]["merge_main"])
+
+
+class GitStatusTests(unittest.TestCase):
+    def test_changed_files_preserves_first_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            target = root / "Assets" / "Example.txt"
+            target.parent.mkdir()
+            target.write_text("one\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+            target.write_text("two\n", encoding="utf-8")
+            self.assertEqual(changed_files(root), ["Assets/Example.txt"])
 
 
 if __name__ == "__main__":

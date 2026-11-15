@@ -96,7 +96,10 @@ def create_batch_worktree(
 
 
 def changed_files(worktree: Path) -> list[str]:
-    output = git_output(worktree, "status", "--porcelain")
+    result = run_command(["git", "status", "--porcelain"], cwd=worktree, timeout=30)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+    output = result.stdout
     files: list[str] = []
     for line in output.splitlines():
         if not line:
