@@ -9,7 +9,7 @@
 | 01 | 新版主菜单收口 | completed | 静态检查通过；Unity 36 项流程验证通过；五种分辨率人工验收通过 | a91ffe3 |
 | 02 | 选关界面视觉重设计 | completed | Unity 编译通过；36 项流程验证通过；状态、焦点与长列表行为验收通过 | 2d50763 |
 | 03 | 设置界面视觉重设计 | completed | Unity 编译通过；36 项流程验证通过；音量卡片、滑轨和焦点逻辑验收通过 | db88e25 |
-| 04 | 暂停界面视觉重设计 | pending | 未测试 | 无 |
+| 04 | 暂停界面视觉重设计 | completed | Unity 编译通过；36 项流程验证通过；暂停、设置返回与区块操作恢复回归通过 | d2df79d |
 | 05 | 通关与失败界面重设计 | pending | 未测试 | 无 |
 | 06 | HUD 视觉重设计 | pending | 未测试 | 无 |
 | 07 | 全局动效、焦点与分辨率收口 | pending | 未测试 | 无 |
@@ -76,3 +76,10 @@
 - 测试结果：Unity 2022.3.62f3c1 编译通过；`Tools > Shattered Caverns > Validate Game Flow` 36 项通过；Console Error=0、Warning=0；检查确认三个音量卡片、滑轨、百分比和纵向导航均已应用。
 - 提交记录：`db88e25 feat: 重设计设置界面视觉`
 - 说明：保留 `SetValueWithoutNotify`、主菜单/暂停返回路径和暂停时间控制；未新增显示、语言、键位、画质设置，也未修改 AudioMixer 或正式音频资源。
+
+### 自动验收完成 Batch 04 · 2026-11-16 02:26 CST
+
+- 状态：completed
+- 测试结果：Unity 2022.3.62f3c1 编译通过；`Tools > Shattered Caverns > Validate Game Flow` 36 项通过；暂停时间、设置返回、重开、返回主菜单和区块操作暂停恢复回归通过。
+- 提交记录：`d2df79d feat: 重设计暂停界面视觉`
+- 说明：新增半透明遮罩、中央内容卡片和按钮层级；UI 未直接修改 `Time.timeScale`，未修改区块交互代码，也未增加确认弹窗。
