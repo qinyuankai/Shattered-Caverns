@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 01 | 新版主菜单收口 | completed | 静态检查通过；Unity 36 项流程验证通过；五种分辨率人工验收通过 | a91ffe3 |
 | 02 | 选关界面视觉重设计 | completed | Unity 编译通过；36 项流程验证通过；状态、焦点与长列表行为验收通过 | 2d50763 |
-| 03 | 设置界面视觉重设计 | pending | 未测试 | 无 |
+| 03 | 设置界面视觉重设计 | completed | Unity 编译通过；36 项流程验证通过；音量卡片、滑轨和焦点逻辑验收通过 | db88e25 |
 | 04 | 暂停界面视觉重设计 | pending | 未测试 | 无 |
 | 05 | 通关与失败界面重设计 | pending | 未测试 | 无 |
 | 06 | HUD 视觉重设计 | pending | 未测试 | 无 |
@@ -69,3 +69,10 @@
 - 测试结果：Unity 2022.3.62f3c1 batchmode 编译通过；`Tools > Shattered Caverns > Validate Game Flow` 36 项通过；Console Error=0、Warning=0；代码审查确认锁定项、首个可用焦点、文字自适应和长列表焦点滚动实现。
 - 提交记录：`2d50763 feat: 重设计选关界面状态与焦点`
 - 说明：正式关卡配置未修改；后续真实多关卡素材接入仍属于 Batch 08。
+
+### 自动验收完成 Batch 03 · 2026-11-16 02:23 CST
+
+- 状态：completed
+- 测试结果：Unity 2022.3.62f3c1 编译通过；`Tools > Shattered Caverns > Validate Game Flow` 36 项通过；Console Error=0、Warning=0；检查确认三个音量卡片、滑轨、百分比和纵向导航均已应用。
+- 提交记录：`db88e25 feat: 重设计设置界面视觉`
+- 说明：保留 `SetValueWithoutNotify`、主菜单/暂停返回路径和暂停时间控制；未新增显示、语言、键位、画质设置，也未修改 AudioMixer 或正式音频资源。
