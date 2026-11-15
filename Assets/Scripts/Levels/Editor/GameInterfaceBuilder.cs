@@ -142,6 +142,24 @@ public static class GameInterfaceBuilder
         Debug.Log("Settings redesign applied.");
     }
 
+    [MenuItem("Tools/Shattered Caverns/Apply Pause Redesign")]
+    public static void ApplyPauseRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ApplyPauseStyle(root.transform.Find("GameCanvas/PausePanel"));
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Pause redesign applied.");
+    }
+
     private static void ConfigureMainMenuBackground()
     {
         TextureImporter importer = AssetImporter.GetAtPath(MainMenuBackgroundPath) as TextureImporter;
@@ -398,6 +416,93 @@ public static class GameInterfaceBuilder
         label.text = "返回";
         label.fontSize = 21;
         label.color = White;
+    }
+
+    private static void ApplyPauseStyle(Transform pause)
+    {
+        if (pause == null) return;
+        Image overlay = pause.GetComponent<Image>();
+        overlay.color = new Color(0.01f, 0.025f, 0.04f, 0.72f);
+
+        Transform existingCard = pause.Find("ContentCard");
+        GameObject card = existingCard == null
+            ? new GameObject("ContentCard", typeof(RectTransform), typeof(Image))
+            : existingCard.gameObject;
+        card.transform.SetParent(pause, false);
+        card.transform.SetAsFirstSibling();
+        Place(card.GetComponent<RectTransform>(), Vector2.zero, new Vector2(620, 650));
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.color = new Color(Surface.r, Surface.g, Surface.b, 0.97f);
+        cardImage.raycastTarget = false;
+
+        StylePauseText(pause.Find("Title"), "暂停探索", new Vector2(0, 245), new Vector2(500, 72), 44, White, FontStyles.Bold);
+        StylePauseText(pause.Find("Subtitle"), "前路仍在，稍作停留。", new Vector2(0, 188), new Vector2(500, 34), 18, Muted, FontStyles.Normal);
+        StylePauseButton(pause.Find("ResumeButton"), "继续探索", new Vector2(0, 95), new Vector2(420, 62), PauseButtonStyle.Primary);
+        StylePauseButton(pause.Find("SettingsButton"), "声音设置", new Vector2(0, 18), new Vector2(420, 54), PauseButtonStyle.Secondary);
+        StylePauseButton(pause.Find("RestartButton"), "重新开始本关", new Vector2(0, -50), new Vector2(420, 54), PauseButtonStyle.Warning);
+        StylePauseButton(pause.Find("MenuButton"), "返回主菜单", new Vector2(0, -118), new Vector2(420, 54), PauseButtonStyle.Secondary);
+        StylePauseText(pause.Find("RestartHint"), "重新开始会重置本关；关卡解锁与声音设置会保留。", new Vector2(0, -225), new Vector2(500, 54), 15, Muted, FontStyles.Normal);
+
+        Transform rule = pause.Find("Divider");
+        GameObject ruleObject = rule == null
+            ? new GameObject("Divider", typeof(RectTransform), typeof(Image))
+            : rule.gameObject;
+        ruleObject.transform.SetParent(pause, false);
+        Place(ruleObject.GetComponent<RectTransform>(), new Vector2(0, 157), new Vector2(420, 1));
+        Image ruleImage = ruleObject.GetComponent<Image>();
+        ruleImage.color = new Color(Accent.r, Accent.g, Accent.b, 0.28f);
+        ruleImage.raycastTarget = false;
+    }
+
+    private enum PauseButtonStyle
+    {
+        Primary,
+        Secondary,
+        Warning
+    }
+
+    private static void StylePauseText(Transform target, string value, Vector2 position, Vector2 size,
+        float fontSize, Color color, FontStyles fontStyle)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.color = color;
+        text.fontStyle = fontStyle;
+        text.alignment = TextAlignmentOptions.Center;
+    }
+
+    private static void StylePauseButton(Transform target, string value, Vector2 position, Vector2 size, PauseButtonStyle style)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        Image image = target.GetComponent<Image>();
+        image.color = style == PauseButtonStyle.Primary
+            ? Gold
+            : style == PauseButtonStyle.Warning
+                ? new Color(0.27f, 0.15f, 0.14f, 1f)
+                : new Color(Ink.r, Ink.g, Ink.b, 0.82f);
+        Button button = target.GetComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = style == PauseButtonStyle.Warning
+            ? new Color(1f, 0.72f, 0.63f)
+            : new Color(0.78f, 1f, 0.91f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = style == PauseButtonStyle.Warning
+            ? new Color(0.72f, 0.45f, 0.4f)
+            : new Color(0.52f, 0.72f, 0.65f);
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+        Transform labelTarget = target.Find("Label");
+        if (labelTarget == null) return;
+        TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+        label.text = style == PauseButtonStyle.Primary ? value + "    →" : value;
+        label.fontSize = style == PauseButtonStyle.Primary ? 23 : 20;
+        label.fontStyle = style == PauseButtonStyle.Primary ? FontStyles.Bold : FontStyles.Normal;
+        label.color = style == PauseButtonStyle.Primary ? Ink : White;
     }
 
     private static void AfterPackageImport(string packageName)
