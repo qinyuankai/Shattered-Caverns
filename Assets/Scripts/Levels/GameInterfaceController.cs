@@ -14,6 +14,8 @@ public class GameInterfaceController : MonoBehaviour
     [SerializeField] private GameObject hudPanel;
     [SerializeField] private Button continueButton;
     [SerializeField] private Button nextLevelButton;
+    [SerializeField] private Button retryButton;
+    [SerializeField] private Image resultAccent;
     [SerializeField] private TMP_Text resultTitle;
     [SerializeField] private TMP_Text resultDescription;
     [SerializeField] private TMP_Text levelTitle;
@@ -109,8 +111,18 @@ public class GameInterfaceController : MonoBehaviour
                 resultDescription.text = completed
                     ? "关卡进度已保存。继续前行，或再次探索。"
                     : "重新开始本关，再试一种连接方式。";
+                Color resultColor = completed
+                    ? new Color(0.91f, 0.66f, 0.29f)
+                    : new Color(0.78f, 0.38f, 0.34f);
+                resultTitle.color = resultColor;
+                if (resultAccent != null) resultAccent.color = resultColor;
                 nextLevelButton.gameObject.SetActive(completed && flow.HasNextLevel());
                 SetPanel(resultPanel);
+                if (eventSystem != null)
+                {
+                    Button focus = nextLevelButton.gameObject.activeSelf ? nextLevelButton : retryButton;
+                    if (focus != null) eventSystem.SetSelectedGameObject(focus.gameObject);
+                }
                 break;
             case GameFlowState.Loading:
                 SetPanel(null);
