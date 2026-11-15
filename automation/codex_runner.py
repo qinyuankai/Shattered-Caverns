@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import time
 from dataclasses import asdict, dataclass
@@ -30,9 +31,16 @@ class SessionResult:
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
+    @property
+    def budget_tokens(self) -> int:
+        uncached_input = max(0, self.input_tokens - self.cached_input_tokens)
+        discounted_cache = math.ceil(self.cached_input_tokens * 0.1)
+        return uncached_input + discounted_cache + self.output_tokens
+
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
         value["total_tokens"] = self.total_tokens
+        value["budget_tokens"] = self.budget_tokens
         return value
 
 

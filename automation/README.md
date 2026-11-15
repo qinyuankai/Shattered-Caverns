@@ -83,7 +83,7 @@ while true; do clear; python3 automation/run.py status; sleep 5; done
 - 复杂 Batch：`gpt-5.6-sol`，medium。
 - 第一次和第二次修复：分别升级到 medium、high。
 - 默认验收：`gpt-5.6-sol`，low；复杂任务或重试后使用 medium。
-- Codex CLI 提供 Token 用量时会写入运行状态和最终报告。
+- Codex CLI 提供 Token 用量时会同时记录原始 Token 与预算折算 Token。预算值按“非缓存输入 + 10% 缓存输入 + 输出”计算，用于避免重复上下文的缓存命中被当作全价消耗；原始用量仍完整保留。
 - CLI 当前不返回可靠价格，因此 `max_cost_usd` 保留为 `null`，不能伪造成本上限；使用总 Token、单 Batch Token、超时、Batch 数和重试数进行硬限制。
 
 可在 `config.yaml` 修改模型、推理强度、最大 Batch 数、两类超时和 Token 上限。模型名称必须先通过 `python3 automation/run.py validate` 验证。

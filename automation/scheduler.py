@@ -54,7 +54,7 @@ def select_next_batch(
 def budget_allows_session(state: dict[str, Any], config: dict[str, Any]) -> bool:
     limit = int(config["limits"]["max_total_tokens"])
     reserve = int(config["limits"]["minimum_remaining_tokens_to_start_session"])
-    return limit - int(state.get("total_tokens", 0)) >= reserve
+    return limit - int(state.get("budget_tokens", state.get("total_tokens", 0))) >= reserve
 
 
 def start_run(config: dict[str, Any], max_batches: int | None = None) -> dict[str, Any]:
@@ -87,6 +87,7 @@ def start_run(config: dict[str, Any], max_batches: int | None = None) -> dict[st
         "max_batches": limit,
         "completed_this_run": 0,
         "total_tokens": 0,
+        "budget_tokens": 0,
         "current_batch": None,
         "batches": {},
         "sessions": [],
@@ -432,10 +433,13 @@ def _record_session(
     batch_state["sessions"].append(record)
     state["sessions"].append(record)
     tokens = int(result.get("total_tokens", 0))
+    budget_tokens = int(result.get("budget_tokens", tokens))
     batch_state["tokens"] = int(batch_state.get("tokens", 0)) + tokens
+    batch_state["budget_tokens"] = int(batch_state.get("budget_tokens", 0)) + budget_tokens
     state["total_tokens"] = int(state.get("total_tokens", 0)) + tokens
+    state["budget_tokens"] = int(state.get("budget_tokens", 0)) + budget_tokens
     batch_limit = int(config["limits"]["max_batch_tokens"])
-    if batch_state["tokens"] > batch_limit:
+    if batch_state["budget_tokens"] > batch_limit:
         batch_state["budget_exceeded"] = True
     state["updated_at"] = timestamp()
     write_json(state_path(config), state)
@@ -588,6 +592,7 @@ def _write_final_report(config: dict[str, Any], state: dict[str, Any]) -> Path:
         f"- 开始：{state.get('started_at')}",
         f"- 更新：{state.get('updated_at')}",
         f"- Token：{state.get('total_tokens', 0)}",
+        f"- 预算折算 Token：{state.get('budget_tokens', state.get('total_tokens', 0))}",
         f"- 说明：{state.get('message', '')}",
         "",
         "## Batch",
@@ -596,7 +601,7 @@ def _write_final_report(config: dict[str, Any], state: dict[str, Any]) -> Path:
     for batch_id, item in sorted(state.get("batches", {}).items()):
         lines.append(
             f"- Batch {batch_id}: {item.get('status')}，尝试 {item.get('attempts', 0)}，"
-            f"Token {item.get('tokens', 0)}"
+            f"Token {item.get('tokens', 0)}，预算折算 {item.get('budget_tokens', item.get('tokens', 0))}"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     state["final_report"] = str(path)

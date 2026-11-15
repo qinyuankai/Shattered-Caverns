@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from automation.codex_runner import build_codex_command, parse_usage
+from automation.codex_runner import SessionResult, build_codex_command, parse_usage
 from automation.common import load_config
 from automation.progress import parse_progress, update_progress
 from automation.scheduler import (
@@ -83,6 +83,25 @@ class BudgetAndCodexTests(unittest.TestCase):
             usage = parse_usage(path)
             self.assertEqual(usage["input_tokens"], 100)
             self.assertEqual(usage["output_tokens"], 20)
+
+    def test_cached_tokens_are_discounted_for_budget(self) -> None:
+        session = SessionResult(
+            exit_code=0,
+            timed_out=False,
+            stopped=False,
+            duration_seconds=1,
+            model="gpt-5.6-sol",
+            reasoning_effort="low",
+            input_tokens=269682,
+            cached_input_tokens=212480,
+            output_tokens=3432,
+            reasoning_output_tokens=0,
+            jsonl_log="session.jsonl",
+            stderr_log="stderr.log",
+            result_file="result.json",
+        )
+        self.assertEqual(session.total_tokens, 273114)
+        self.assertEqual(session.budget_tokens, 81882)
 
     def test_codex_command_uses_safe_noninteractive_flags(self) -> None:
         command = build_codex_command(
