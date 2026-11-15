@@ -37,6 +37,7 @@ public class GameInterfaceController : MonoBehaviour
     private LevelManager levelManager;
     private PlayerChunkInteraction chunkInteraction;
     private GameObject activePanel;
+    private Coroutine panelRevealRoutine;
     private float messageUntil;
     private float nextHudRefresh;
 
@@ -260,17 +261,57 @@ public class GameInterfaceController : MonoBehaviour
 
     private void SetPanel(GameObject panel)
     {
+        if (panelRevealRoutine != null)
+        {
+            StopCoroutine(panelRevealRoutine);
+            panelRevealRoutine = null;
+        }
+        ResetPanelPresentation(activePanel);
         mainMenuPanel.SetActive(panel == mainMenuPanel);
         levelSelectPanel.SetActive(panel == levelSelectPanel);
         settingsPanel.SetActive(panel == settingsPanel);
         pausePanel.SetActive(panel == pausePanel);
         resultPanel.SetActive(panel == resultPanel);
         activePanel = panel;
+        CanvasGroup panelGroup = panel == null ? null : panel.GetComponent<CanvasGroup>();
+        if (panelGroup != null)
+        {
+            panelGroup.alpha = 0f;
+            panelGroup.interactable = true;
+            panelGroup.blocksRaycasts = true;
+            panelRevealRoutine = StartCoroutine(RevealPanel(panelGroup));
+        }
         if (eventSystem != null)
         {
             Selectable first = panel == null ? null : panel.GetComponentInChildren<Selectable>();
             eventSystem.SetSelectedGameObject(first == null ? null : first.gameObject);
         }
+    }
+
+    private static void ResetPanelPresentation(GameObject panel)
+    {
+        if (panel == null) return;
+        CanvasGroup group = panel.GetComponent<CanvasGroup>();
+        if (group == null) return;
+        group.alpha = 1f;
+        group.interactable = true;
+        group.blocksRaycasts = true;
+    }
+
+    private IEnumerator RevealPanel(CanvasGroup group)
+    {
+        const float duration = 0.12f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            group.alpha = 1f - (1f - t) * (1f - t);
+            yield return null;
+        }
+        group.alpha = 1f;
+        group.interactable = true;
+        panelRevealRoutine = null;
     }
 
     public void ShowMessage(string text)

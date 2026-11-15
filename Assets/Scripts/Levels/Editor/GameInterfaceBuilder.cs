@@ -197,6 +197,46 @@ public static class GameInterfaceBuilder
         Debug.Log("HUD redesign applied.");
     }
 
+    [MenuItem("Tools/Shattered Caverns/Apply Interface Polish")]
+    public static void ApplyInterfacePolish()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            CanvasScaler scaler = root.GetComponentInChildren<CanvasScaler>(true);
+            scaler.matchWidthOrHeight = 1f;
+            Transform canvas = root.transform.Find("GameCanvas");
+            string[] panelNames = { "MainMenuPanel", "LevelSelectPanel", "SettingsPanel", "PausePanel", "ResultPanel" };
+            foreach (string panelName in panelNames)
+            {
+                Transform panel = canvas.Find(panelName);
+                if (panel != null && panel.GetComponent<CanvasGroup>() == null) panel.gameObject.AddComponent<CanvasGroup>();
+            }
+            foreach (Button button in canvas.GetComponentsInChildren<Button>(true)) ApplyUnifiedButtonState(button);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Interface polish applied.");
+    }
+
+    private static void ApplyUnifiedButtonState(Button button)
+    {
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.82f, 1f, 0.94f);
+        colors.selectedColor = new Color(0.91f, 0.72f, 0.4f);
+        colors.pressedColor = new Color(0.58f, 0.76f, 0.69f);
+        colors.disabledColor = new Color(0.42f, 0.47f, 0.48f, 0.48f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+    }
+
     private static void ConfigureMainMenuBackground()
     {
         TextureImporter importer = AssetImporter.GetAtPath(MainMenuBackgroundPath) as TextureImporter;

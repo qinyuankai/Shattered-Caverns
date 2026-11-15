@@ -290,6 +290,8 @@ Chunk
 - 暂停界面使用半透明全屏遮罩和居中内容卡片，继续操作为默认焦点，重新开始使用警示层级；界面只调用 `GameFlowController` 的暂停、恢复、重开和返回接口，不直接修改时间缩放。
 - 通关与失败继续共用 `ResultPanel`：控制器根据流程状态切换标题、说明和暖金/暖红强调色；有下一关时默认聚焦下一关，否则默认聚焦重试。
 - HUD 使用左上状态卡、右上暂停入口和底部操作提示条；普通、放置与拿下状态使用不同文字和强调色，仍以 0.15 秒间隔只读 `LevelManager` 与 `PlayerChunkInteraction`。
+- 主菜单、选关、设置、暂停和结果面板带 0.12 秒 unscaled-time 淡入；淡入不禁用交互，场景加载期间的输入屏蔽仍由 Loading 状态和 Transition CanvasGroup 负责。
+- 全局按钮统一 Hover、Selected、Pressed 和 Disabled 色彩反馈；Canvas 按 1600×900 高度适配，已覆盖 4:3、16:9、16:10 和约 21:9 比例。
 - 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
 - `CavernsPipeline.asset` 和 `CavernsRenderer2D.asset` 为缺失管线引用的替代配置，使用 URP 2D Renderer；没有调整 Layer、Tag 或物理矩阵。
 
@@ -339,6 +341,7 @@ Chunk
 - `Tools > Shattered Caverns > Apply Pause Redesign` 通过 Unity API 将遮罩、中央卡片、按钮层级与提示信息应用到现有 Prefab，不修改暂停职责边界或区块交互代码。
 - `Tools > Shattered Caverns > Apply Result Redesign` 通过 Unity API 将结果遮罩、中央卡片、状态强调条和按钮层级应用到共用结果面板。
 - `Tools > Shattered Caverns > Apply HUD Redesign` 通过 Unity API 将状态卡、暂停入口和底部提示条应用到现有 HUD，不创建第二份玩法状态。
+- `Tools > Shattered Caverns > Apply Interface Polish` 为五个主要面板配置 CanvasGroup，并统一按钮状态色和 CanvasScaler 适配设置。
 - `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置与 Build Settings，再在 Play Mode 中验证主菜单、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
 - 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
 - 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
