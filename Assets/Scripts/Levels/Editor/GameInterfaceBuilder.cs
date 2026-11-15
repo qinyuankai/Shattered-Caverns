@@ -123,6 +123,25 @@ public static class GameInterfaceBuilder
         Debug.Log("Main menu redesign applied.");
     }
 
+    [MenuItem("Tools/Shattered Caverns/Apply Settings Redesign")]
+    public static void ApplySettingsRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform settings = root.transform.Find("GameCanvas/SettingsPanel");
+            ApplySettingsStyle(settings);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Settings redesign applied.");
+    }
+
     private static void ConfigureMainMenuBackground()
     {
         TextureImporter importer = AssetImporter.GetAtPath(MainMenuBackgroundPath) as TextureImporter;
@@ -244,6 +263,141 @@ public static class GameInterfaceBuilder
         Image accentImage = accent.GetComponent<Image>();
         accentImage.color = primary ? White : Accent;
         accentImage.raycastTarget = false;
+    }
+
+    private static void ApplySettingsStyle(Transform settings)
+    {
+        if (settings == null) return;
+        settings.GetComponent<Image>().color = new Color(Ink.r, Ink.g, Ink.b, 0.985f);
+        StyleSettingsHeading(settings.Find("Title"), "声音设置", new Vector2(0, 300), new Vector2(900, 75), 46, White);
+        StyleSettingsHeading(settings.Find("Subtitle"), "调整洞窟中的声音层次，修改会自动保存。", new Vector2(0, 238), new Vector2(900, 38), 18, Muted);
+        StyleVolumeRow(settings, "Master", "总音量", "控制游戏中的全部声音", 115);
+        StyleVolumeRow(settings, "Music", "背景音乐", "控制环境氛围与背景音乐", 0);
+        StyleVolumeRow(settings, "Sound", "游戏音效", "控制按钮、交互与玩法反馈", -115);
+
+        Transform back = settings.Find("BackButton");
+        if (back != null)
+        {
+            Place(back.GetComponent<RectTransform>(), new Vector2(0, -312), new Vector2(300, 56));
+            StyleSettingsButton(back);
+        }
+    }
+
+    private static void StyleSettingsHeading(Transform target, string value, Vector2 position, Vector2 size, float fontSize, Color color)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.color = color;
+        text.alignment = TextAlignmentOptions.Center;
+    }
+
+    private static void StyleVolumeRow(Transform settings, string prefix, string title, string description, float y)
+    {
+        Transform existingCard = settings.Find(prefix + "Card");
+        GameObject card = existingCard == null
+            ? new GameObject(prefix + "Card", typeof(RectTransform), typeof(Image))
+            : existingCard.gameObject;
+        card.transform.SetParent(settings, false);
+        card.transform.SetSiblingIndex(2);
+        Place(card.GetComponent<RectTransform>(), new Vector2(0, y), new Vector2(820, 96));
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.color = new Color(Surface.r, Surface.g, Surface.b, 0.82f);
+        cardImage.raycastTarget = false;
+
+        Transform labelTarget = settings.Find(prefix + "Label");
+        if (labelTarget != null)
+        {
+            Place(labelTarget.GetComponent<RectTransform>(), new Vector2(-300, y + 15), new Vector2(180, 34));
+            TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+            label.text = title;
+            label.fontSize = 22;
+            label.fontStyle = FontStyles.Bold;
+            label.color = White;
+            label.alignment = TextAlignmentOptions.MidlineLeft;
+        }
+
+        Transform descriptionTarget = settings.Find(prefix + "Description");
+        GameObject descriptionObject = descriptionTarget == null
+            ? new GameObject(prefix + "Description", typeof(RectTransform), typeof(TextMeshProUGUI))
+            : descriptionTarget.gameObject;
+        descriptionObject.transform.SetParent(settings, false);
+        Place(descriptionObject.GetComponent<RectTransform>(), new Vector2(-300, y - 18), new Vector2(230, 26));
+        TextMeshProUGUI descriptionText = descriptionObject.GetComponent<TextMeshProUGUI>();
+        descriptionText.text = description;
+        descriptionText.font = font == null ? AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Settings/Fonts/CavernsChinese.asset") : font;
+        descriptionText.fontSize = 14;
+        descriptionText.color = Muted;
+        descriptionText.alignment = TextAlignmentOptions.MidlineLeft;
+        descriptionText.raycastTarget = false;
+        descriptionText.enableWordWrapping = false;
+
+        Transform valueTarget = settings.Find(prefix + "Value");
+        if (valueTarget != null)
+        {
+            Place(valueTarget.GetComponent<RectTransform>(), new Vector2(334, y), new Vector2(90, 40));
+            TextMeshProUGUI value = valueTarget.GetComponent<TextMeshProUGUI>();
+            value.fontSize = 21;
+            value.fontStyle = FontStyles.Bold;
+            value.color = Accent;
+            value.alignment = TextAlignmentOptions.Center;
+        }
+
+        Transform sliderTarget = settings.Find(prefix + "Slider");
+        if (sliderTarget == null) return;
+        Place(sliderTarget.GetComponent<RectTransform>(), new Vector2(82, y), new Vector2(380, 46));
+        Slider slider = sliderTarget.GetComponent<Slider>();
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.navigation = new Navigation { mode = Navigation.Mode.Vertical };
+        ColorBlock colors = slider.colors;
+        colors.normalColor = White;
+        colors.highlightedColor = Accent;
+        colors.selectedColor = Gold;
+        colors.pressedColor = new Color(0.7f, 0.94f, 0.84f);
+        colors.disabledColor = new Color(0.35f, 0.42f, 0.43f, 0.5f);
+        colors.fadeDuration = 0.1f;
+        slider.colors = colors;
+
+        Transform track = sliderTarget.Find("Track");
+        if (track != null)
+        {
+            Place(track.GetComponent<RectTransform>(), Vector2.zero, new Vector2(380, 10));
+            track.GetComponent<Image>().color = new Color(0.16f, 0.25f, 0.27f, 1f);
+        }
+        Transform fill = sliderTarget.Find("FillArea/Fill");
+        if (fill != null)
+        {
+            RectTransform fillRect = fill.GetComponent<RectTransform>();
+            Stretch(fillRect);
+            fillRect.sizeDelta = new Vector2(0, -34);
+            fill.GetComponent<Image>().color = Accent;
+        }
+        Transform handle = sliderTarget.Find("HandleArea/Handle");
+        if (handle != null)
+        {
+            Place(handle.GetComponent<RectTransform>(), Vector2.zero, new Vector2(22, 34));
+            handle.GetComponent<Image>().color = White;
+        }
+    }
+
+    private static void StyleSettingsButton(Transform target)
+    {
+        target.GetComponent<Image>().color = new Color(Surface.r, Surface.g, Surface.b, 0.95f);
+        Button button = target.GetComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.75f, 1f, 0.9f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = new Color(0.45f, 0.7f, 0.6f);
+        button.colors = colors;
+        Transform labelTarget = target.Find("Label");
+        if (labelTarget == null) return;
+        TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+        label.text = "返回";
+        label.fontSize = 21;
+        label.color = White;
     }
 
     private static void AfterPackageImport(string packageName)
