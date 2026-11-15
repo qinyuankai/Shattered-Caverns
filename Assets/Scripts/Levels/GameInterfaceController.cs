@@ -138,15 +138,19 @@ public class GameInterfaceController : MonoBehaviour
             {
                 case PlayerChunkInteractionState.Placing:
                     interactionHint.text = "放置区块    F 确认  /  Q 旋转  /  E 切换  /  X 取消";
+                    interactionHint.color = new Color(0.5f, 0.87f, 0.72f);
                     break;
                 case PlayerChunkInteractionState.Removing:
                     interactionHint.text = "拿下区块    F 确认  /  X 取消";
+                    interactionHint.color = new Color(0.91f, 0.66f, 0.29f);
                     break;
                 default:
                     interactionHint.text = "A / D 移动    空格 跳跃    F 区块操作    Esc 暂停";
+                    interactionHint.color = new Color(0.78f, 0.86f, 0.84f);
                     break;
             }
         }
+        else interactionHint.text = "";
         if (levelManager == null)
         {
             fragmentProgress.text = "";

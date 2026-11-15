@@ -179,6 +179,24 @@ public static class GameInterfaceBuilder
         Debug.Log("Result redesign applied.");
     }
 
+    [MenuItem("Tools/Shattered Caverns/Apply HUD Redesign")]
+    public static void ApplyHudRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ApplyHudStyle(root.transform.Find("GameCanvas/GameHUD"));
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("HUD redesign applied.");
+    }
+
     private static void ConfigureMainMenuBackground()
     {
         TextureImporter importer = AssetImporter.GetAtPath(MainMenuBackgroundPath) as TextureImporter;
@@ -594,6 +612,96 @@ public static class GameInterfaceBuilder
         label.fontSize = primary ? 22 : 20;
         label.fontStyle = primary ? FontStyles.Bold : FontStyles.Normal;
         label.color = primary ? Ink : White;
+    }
+
+    private static void ApplyHudStyle(Transform hud)
+    {
+        if (hud == null) return;
+        Image hudImage = hud.GetComponent<Image>();
+        hudImage.color = Color.clear;
+        hudImage.raycastTarget = false;
+
+        Transform existingStatus = hud.Find("StatusCard");
+        GameObject status = existingStatus == null
+            ? new GameObject("StatusCard", typeof(RectTransform), typeof(Image))
+            : existingStatus.gameObject;
+        status.transform.SetParent(hud, false);
+        status.transform.SetAsFirstSibling();
+        RectTransform statusRect = status.GetComponent<RectTransform>();
+        statusRect.anchorMin = statusRect.anchorMax = statusRect.pivot = new Vector2(0f, 1f);
+        statusRect.anchoredPosition = new Vector2(28, -28);
+        statusRect.sizeDelta = new Vector2(390, 250);
+        Image statusImage = status.GetComponent<Image>();
+        statusImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.84f);
+        statusImage.raycastTarget = false;
+
+        Transform titleTarget = hud.Find("LevelTitle");
+        if (titleTarget != null)
+        {
+            Place(titleTarget.GetComponent<RectTransform>(), new Vector2(52, -48), new Vector2(320, 40), true);
+            TextMeshProUGUI title = titleTarget.GetComponent<TextMeshProUGUI>();
+            title.fontSize = 24;
+            title.fontStyle = FontStyles.Bold;
+            title.color = White;
+            title.alignment = TextAlignmentOptions.TopLeft;
+        }
+
+        Transform progressTarget = hud.Find("FragmentProgress");
+        if (progressTarget != null)
+        {
+            Place(progressTarget.GetComponent<RectTransform>(), new Vector2(52, -96), new Vector2(320, 160), true);
+            TextMeshProUGUI progress = progressTarget.GetComponent<TextMeshProUGUI>();
+            progress.fontSize = 17;
+            progress.lineSpacing = 8f;
+            progress.color = new Color(0.78f, 0.86f, 0.84f);
+            progress.alignment = TextAlignmentOptions.TopLeft;
+        }
+
+        Transform pauseTarget = hud.Find("PauseButton");
+        if (pauseTarget != null)
+        {
+            RectTransform pauseRect = pauseTarget.GetComponent<RectTransform>();
+            pauseRect.anchorMin = pauseRect.anchorMax = pauseRect.pivot = Vector2.one;
+            pauseRect.anchoredPosition = new Vector2(-30, -28);
+            pauseRect.sizeDelta = new Vector2(190, 46);
+            pauseTarget.GetComponent<Image>().color = new Color(Ink.r, Ink.g, Ink.b, 0.88f);
+            Transform labelTarget = pauseTarget.Find("Label");
+            if (labelTarget != null)
+            {
+                TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+                label.text = "暂停    Esc";
+                label.fontSize = 18;
+                label.color = White;
+            }
+        }
+
+        Transform existingHint = hud.Find("HintCard");
+        GameObject hintCard = existingHint == null
+            ? new GameObject("HintCard", typeof(RectTransform), typeof(Image))
+            : existingHint.gameObject;
+        hintCard.transform.SetParent(hud, false);
+        hintCard.transform.SetSiblingIndex(1);
+        RectTransform hintRect = hintCard.GetComponent<RectTransform>();
+        hintRect.anchorMin = hintRect.anchorMax = hintRect.pivot = new Vector2(0.5f, 0f);
+        hintRect.anchoredPosition = new Vector2(0, 26);
+        hintRect.sizeDelta = new Vector2(980, 52);
+        Image hintImage = hintCard.GetComponent<Image>();
+        hintImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.8f);
+        hintImage.raycastTarget = false;
+
+        Transform hintTarget = hud.Find("InteractionHint");
+        if (hintTarget != null)
+        {
+            RectTransform hint = hintTarget.GetComponent<RectTransform>();
+            hint.anchorMin = hint.anchorMax = hint.pivot = new Vector2(0.5f, 0f);
+            hint.anchoredPosition = new Vector2(0, 26);
+            hint.sizeDelta = new Vector2(920, 48);
+            TextMeshProUGUI hintText = hintTarget.GetComponent<TextMeshProUGUI>();
+            hintText.fontSize = 18;
+            hintText.fontStyle = FontStyles.Bold;
+            hintText.alignment = TextAlignmentOptions.Center;
+            hintText.enableWordWrapping = false;
+        }
     }
 
     private static void AfterPackageImport(string packageName)
