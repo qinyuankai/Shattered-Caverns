@@ -266,7 +266,19 @@ public static class GameFlowValidation
         Require(Mathf.Approximately(music.volume, 0.12f) && Mathf.Approximately(sound.volume, 0.08f),
             "Master volume multiplies independent music and sound levels");
         flow.AudioPlayer.PlaySound(clip);
-        flow.AudioPlayer.PlayMusic(null);
+        flow.AudioPlayer.PauseMusic();
+        Require(flow.AudioPlayer.IsMusicPaused && flow.AudioPlayer.CurrentMusic == clip,
+            "Music pause preserves the current clip");
+        flow.AudioPlayer.ResumeMusic();
+        Require(!flow.AudioPlayer.IsMusicPaused && music.loop,
+            "Music resumes with looping enabled");
+        flow.AudioPlayer.StopMusic();
+        Require(flow.AudioPlayer.CurrentMusic == null && !music.isPlaying,
+            "Music stop clears the current clip");
+        flow.AudioPlayer.PlayMusic(clip, 0.5f);
+        flow.AudioPlayer.StopMusic();
+        Require(flow.AudioPlayer.CurrentMusic == null && Mathf.Approximately(music.volume, 0.12f),
+            "Immediate stop cancels a pending fade and restores channel gain");
         UnityEngine.Object.Destroy(clip);
     }
 

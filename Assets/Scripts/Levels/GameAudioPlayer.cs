@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class GameAudioPlayer : MonoBehaviour
@@ -5,11 +6,16 @@ public class GameAudioPlayer : MonoBehaviour
     [SerializeField] private AudioSource musicSource;
     [SerializeField] private AudioSource soundSource;
     private GameSaveStore saveStore;
+    private Coroutine musicTransition;
+    private AudioClip requestedMusic;
+    private float musicGain = 1f;
+    private bool isMusicPaused;
 
     public float MasterVolume => saveStore.Data.masterVolume;
     public float MusicVolume => saveStore.Data.musicVolume;
     public float SoundVolume => saveStore.Data.soundVolume;
     public AudioClip CurrentMusic => musicSource.clip;
+    public bool IsMusicPaused => isMusicPaused;
 
     public void Initialize(GameSaveStore store)
     {
@@ -19,10 +25,93 @@ public class GameAudioPlayer : MonoBehaviour
 
     public void PlayMusic(AudioClip clip)
     {
-        if (musicSource.clip == clip) return;
+        PlayMusic(clip, 0f);
+    }
+
+    public void PlayMusic(AudioClip clip, float fadeDuration)
+    {
+        if (requestedMusic == clip && (musicTransition != null || musicSource.clip == clip)) return;
+        CancelMusicTransition();
+        requestedMusic = clip;
+        if (fadeDuration > 0f && !isMusicPaused && isActiveAndEnabled)
+        {
+            musicTransition = StartCoroutine(TransitionMusic(clip, fadeDuration));
+            return;
+        }
+        SetMusic(clip);
+        musicGain = 1f;
+        ApplyVolumes();
+    }
+
+    public void StopMusic(float fadeDuration = 0f)
+    {
+        PlayMusic(null, fadeDuration);
+    }
+
+    public void PauseMusic()
+    {
+        isMusicPaused = true;
+        musicSource.Pause();
+    }
+
+    public void ResumeMusic()
+    {
+        if (!isMusicPaused) return;
+        isMusicPaused = false;
+        musicSource.UnPause();
+    }
+
+    private void SetMusic(AudioClip clip)
+    {
         musicSource.Stop();
         musicSource.clip = clip;
-        if (clip != null) musicSource.Play();
+        musicSource.loop = true;
+        if (clip == null) return;
+        musicSource.Play();
+        if (isMusicPaused) musicSource.Pause();
+    }
+
+    private IEnumerator TransitionMusic(AudioClip clip, float duration)
+    {
+        if (musicSource.clip != null) yield return FadeMusic(0f, duration);
+        SetMusic(clip);
+        musicGain = 0f;
+        ApplyVolumes();
+        if (clip != null) yield return FadeMusic(1f, duration);
+        musicGain = 1f;
+        ApplyVolumes();
+        musicTransition = null;
+    }
+
+    private IEnumerator FadeMusic(float target, float duration)
+    {
+        float initial = musicGain;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            if (!isMusicPaused)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                musicGain = Mathf.Lerp(initial, target, elapsed / duration);
+                ApplyVolumes();
+            }
+            yield return null;
+        }
+    }
+
+    private void CancelMusicTransition()
+    {
+        if (musicTransition == null) return;
+        StopCoroutine(musicTransition);
+        musicTransition = null;
+    }
+
+    private void OnDisable()
+    {
+        CancelMusicTransition();
+        requestedMusic = musicSource.clip;
+        musicGain = 1f;
+        if (saveStore != null) ApplyVolumes();
     }
 
     public void PlaySound(AudioClip clip)
@@ -50,7 +139,7 @@ public class GameAudioPlayer : MonoBehaviour
 
     private void ApplyVolumes()
     {
-        musicSource.volume = MasterVolume * MusicVolume;
+        musicSource.volume = MasterVolume * MusicVolume * musicGain;
         soundSource.volume = MasterVolume * SoundVolume;
     }
 }

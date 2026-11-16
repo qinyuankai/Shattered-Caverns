@@ -332,6 +332,11 @@ Chunk
 - `GameAudioPlayer` 管理独立的 MusicPlayer 与 SoundPlayer，实际音量为主音量乘对应通道音量。
 - 配置中的菜单音乐、各关卡音乐、按钮／通关／失败音效可在 Inspector 指定；当前没有正式音频素材，允许为空。
 - `PlayMusic(AudioClip)` 与 `PlaySound(AudioClip)` 可供玩法对象调用；相同背景音乐不会因为重复请求而从头播放。
+- `PlayMusic(AudioClip, float fadeDuration)` 支持先淡出旧音乐、再淡入新音乐；时长为每一段淡变的秒数，0 表示立即切换。重复请求正在切换到的音乐不会重置过渡；新请求取消旧过渡。
+- `StopMusic(float fadeDuration = 0f)` 停止并清空音乐，传入空音乐具有相同效果。`PauseMusic()`／`ResumeMusic()` 保留并恢复播放位置，`IsMusicPaused` 表示接口暂停状态。
+- 淡变使用不受 `Time.timeScale` 影响的时间，音量设置会即时乘入淡变增益；手动暂停音乐时淡变也暂停。游戏暂停与区块操作默认保持背景音乐播放，不自动调用音乐暂停接口。
+- 场景切换通过 `GameConfiguration.MusicFadeDuration` 设置淡变时长，默认每段 0.5 秒；相同音乐跨场景保持播放。接口入口为 `GameFlowController.Instance.AudioPlayer`，应在全局流程初始化后调用。
+- 接入素材时，在 `Assets/Settings/GameConfiguration.asset` 的 `Menu Music`、各关卡 `Music` 和对应音效字段拖入 AudioClip；`Music Fade Duration` 调整切换时长。音乐循环由播放器保证；空引用不会阻止流程运行。音量沿用现有设置与存档。
 
 ### 6.Editor 工具与验证
 

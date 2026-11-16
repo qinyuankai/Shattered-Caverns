@@ -101,7 +101,8 @@ public class GameFlowController : MonoBehaviour
             SaveStore.Save();
         }
 
-        audioPlayer.PlayMusic(CurrentLevel == null ? configuration.MenuMusic : CurrentLevel.music);
+        audioPlayer.PlayMusic(CurrentLevel == null ? configuration.MenuMusic : CurrentLevel.music,
+            configuration.MusicFadeDuration);
         SetState(isLoading ? GameFlowState.Loading : CurrentLevel == null ? GameFlowState.MainMenu : GameFlowState.Playing);
         gameInterface.ShowScene(CurrentLevel != null);
     }
