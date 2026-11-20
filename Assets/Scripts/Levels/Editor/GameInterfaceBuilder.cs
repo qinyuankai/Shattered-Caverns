@@ -54,8 +54,7 @@ public static class GameInterfaceBuilder
         first.FindPropertyRelative("displayName").stringValue = "初探洞窟";
         first.FindPropertyRelative("scenePath").stringValue = "Assets/Scenes/URP2DSceneTemplate.unity";
         config.ApplyModifiedPropertiesWithoutUndo();
-        LevelSelectButton levelButton = CreateLevelButton();
-        BuildApplication(configuration, levelButton);
+        BuildApplication(configuration);
         Scene menu = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         GameObject cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
         Camera camera = cameraObject.GetComponent<Camera>();
@@ -351,6 +350,7 @@ public static class GameInterfaceBuilder
             state.pressedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignPressed.png");
             state.disabledSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignDisabled.png");
             button.spriteState = state;
+            label.alignment = TextAlignmentOptions.Midline;
             label.margin = new Vector4(56f, 0f, 56f, 0f);
             label.enableWordWrapping = false;
             label.overflowMode = target.name == "ContinueButton" ? TextOverflowModes.Truncate : TextOverflowModes.Ellipsis;
@@ -786,31 +786,7 @@ public static class GameInterfaceBuilder
         return asset;
     }
 
-    private static LevelSelectButton CreateLevelButton()
-    {
-        GameObject root = new GameObject("LevelSelectItem", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-        root.GetComponent<Image>().color = Surface;
-        root.GetComponent<LayoutElement>().preferredHeight = 76f;
-        TextMeshProUGUI label = Text(root.transform, "Label", "", new Vector2(24, 0), new Vector2(660, 70), 23, White);
-        label.alignment = TextAlignmentOptions.MidlineLeft;
-        label.enableWordWrapping = false;
-        label.enableAutoSizing = true;
-        label.fontSizeMin = 18f;
-        ColorBlock colors = root.GetComponent<Button>().colors;
-        colors.highlightedColor = new Color(0.72f, 0.95f, 0.88f);
-        colors.selectedColor = colors.highlightedColor;
-        colors.pressedColor = new Color(0.5f, 0.72f, 0.66f);
-        colors.disabledColor = Color.white;
-        root.GetComponent<Button>().colors = colors;
-        LevelSelectButton view = root.AddComponent<LevelSelectButton>();
-        Assign(view, "button", root.GetComponent<Button>());
-        Assign(view, "label", label);
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, "Assets/Prefab/LevelSelectItem.prefab");
-        Object.DestroyImmediate(root);
-        return prefab.GetComponent<LevelSelectButton>();
-    }
-
-    private static void BuildApplication(GameConfiguration configuration, LevelSelectButton levelButton)
+    private static void BuildApplication(GameConfiguration configuration)
     {
         GameObject root = new GameObject("GameApplication");
         GameFlowController flow = root.AddComponent<GameFlowController>();
@@ -839,7 +815,6 @@ public static class GameInterfaceBuilder
         Assign(flow, "audioPlayer", audio);
         Assign(flow, "gameInterface", ui);
         Assign(ui, "eventSystem", events.GetComponent<EventSystem>());
-        Assign(ui, "levelButtonPrefab", levelButton);
 
         GameObject hud = Panel(canvasObject.transform, "GameHUD", Color.clear);
         Assign(ui, "hudPanel", hud);
@@ -867,29 +842,10 @@ public static class GameInterfaceBuilder
         Button(main.transform, "QuitButton", "退出游戏", new Vector2(130, -716), new Vector2(390, 54), ui.QuitGame, true);
         ApplyMainMenuStyle(main.transform);
 
-        GameObject levels = Page(canvasObject.transform, "LevelSelectPanel", "选择关卡", "从已经解锁的洞窟继续探索。", ui.Back);
+        GameObject levels = Panel(canvasObject.transform, "LevelSelectPanel", Ink);
+        Text(levels.transform, "Title", "选择关卡", new Vector2(0, 295), new Vector2(900, 80), 48, White);
+        Button(levels.transform, "BackButton", "返回", new Vector2(0, -330), new Vector2(280, 55), ui.Back);
         Assign(ui, "levelSelectPanel", levels);
-        GameObject scrollObject = new GameObject("LevelScroll", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
-        scrollObject.transform.SetParent(levels.transform, false);
-        Place(scrollObject.GetComponent<RectTransform>(), new Vector2(0, -35), new Vector2(860, 450));
-        scrollObject.GetComponent<Image>().color = Color.clear;
-        GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
-        viewport.transform.SetParent(scrollObject.transform, false);
-        Stretch(viewport.GetComponent<RectTransform>());
-        GameObject list = new GameObject("LevelList", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        list.transform.SetParent(viewport.transform, false);
-        RectTransform listRect = list.GetComponent<RectTransform>();
-        listRect.anchorMin = new Vector2(0, 1); listRect.anchorMax = Vector2.one;
-        listRect.pivot = new Vector2(0.5f, 1); listRect.sizeDelta = Vector2.zero;
-        VerticalLayoutGroup layout = list.GetComponent<VerticalLayoutGroup>();
-        layout.spacing = 14; layout.padding = new RectOffset(8, 8, 8, 8);
-        layout.childControlWidth = true; layout.childControlHeight = true;
-        layout.childForceExpandHeight = false;
-        list.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        ScrollRect scroll = scrollObject.GetComponent<ScrollRect>();
-        scroll.viewport = viewport.GetComponent<RectTransform>(); scroll.content = listRect;
-        scroll.horizontal = false; scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 28f;
-        Assign(ui, "levelList", list.transform);
 
         GameObject settings = Page(canvasObject.transform, "SettingsPanel", "声音设置", "调整你的洞窟声景。设置会自动保留。", ui.Back);
         Assign(ui, "settingsPanel", settings);

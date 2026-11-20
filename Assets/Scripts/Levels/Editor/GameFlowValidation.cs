@@ -130,12 +130,18 @@ public static class GameFlowValidation
                     TestSaveNormalization(flow);
                     ui.OpenLevelSelect();
                     Require(Get<GameObject>(ui, "levelSelectPanel").activeSelf, "Level selection opens");
-                    Transform levelList = Get<Transform>(ui, "levelList");
-                    TMP_Text levelLabel = levelList.GetChild(0).GetComponentInChildren<TMP_Text>();
-                    Require(levelLabel.text.Contains("·  可探索") && !levelLabel.text.Contains("   "),
-                        "Level selection uses responsive status text");
-                    Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == levelList.GetChild(0).gameObject,
-                        "Level selection focuses the first level");
+                    Transform levelPanel = Get<GameObject>(ui, "levelSelectPanel").transform;
+                    Transform cavern = levelPanel.Find("LevelMap/Cavern");
+                    Require(cavern != null && cavern.Find("Explorer") != null && cavern.Find("Door") != null,
+                        "Level selection builds the cavern, explorer and level doors");
+                    object map = Get<object>(ui, "levelSelectMap");
+                    MethodInfo move = map.GetType().GetMethod("Move", BindingFlags.Instance | BindingFlags.NonPublic);
+                    for (int frame = 0; frame < 14; frame++)
+                        move.Invoke(map, new object[] { frame < 6 ? 1f : 0f, 0.05f });
+                    MethodInfo findNearbyDoor = map.GetType().GetMethod("FindNearbyDoor",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Require((int)findNearbyDoor.Invoke(map, null) == 0,
+                        "The explorer lands on the first platform and reaches the first configured door");
                     ui.Back();
                     ClickPointer(ui, "MainMenuPanel/SettingsButton");
                     Require(Get<GameObject>(ui, "settingsPanel").activeSelf, "Pointer raycast and click open settings");

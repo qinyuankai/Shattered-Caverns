@@ -29,12 +29,11 @@ public class GameInterfaceController : MonoBehaviour
     [SerializeField] private Slider masterSlider;
     [SerializeField] private Slider musicSlider;
     [SerializeField] private Slider soundSlider;
-    [SerializeField] private Transform levelList;
-    [SerializeField] private LevelSelectButton levelButtonPrefab;
     [SerializeField] private CanvasGroup transition;
     [SerializeField] private EventSystem eventSystem;
 
     private GameFlowController flow;
+    private LevelSelectMap levelSelectMap;
     private LevelManager levelManager;
     private PlayerChunkInteraction chunkInteraction;
     private GameObject activePanel;
@@ -74,6 +73,7 @@ public class GameInterfaceController : MonoBehaviour
             else if (flow.State == GameFlowState.Playing) OpenPause();
             else if (flow.State == GameFlowState.Paused) Resume();
         }
+        if (activePanel == levelSelectPanel) levelSelectMap?.Update();
         if (flow.CurrentLevel != null && Time.unscaledTime >= nextHudRefresh)
         {
             nextHudRefresh = Time.unscaledTime + 0.15f;
@@ -98,10 +98,9 @@ public class GameInterfaceController : MonoBehaviour
         continueButton.interactable = lastLevel != null && flow.SaveStore.IsUnlocked(lastLevelId);
         if (continueLabel != null)
         {
-            continueLabel.text = continueButton.interactable && !string.IsNullOrEmpty(lastLevel.displayName)
-                ? $"<line-height=24><size=23>继续游戏</size>\n<size=15><color=#C9B38F>{lastLevel.displayName}</color></size>"
-                : "继续游戏";
-            continueLabel.color = continueButton.interactable ? Color.white : new Color(0.56f, 0.53f, 0.49f);
+            continueLabel.color = continueButton.interactable
+                ? new Color(0.9f, 0.94f, 0.91f)
+                : new Color(0.56f, 0.53f, 0.49f);
         }
         switch (flow.State)
         {
@@ -189,21 +188,10 @@ public class GameInterfaceController : MonoBehaviour
     public void OpenLevelSelect()
     {
         ClickSound();
-        foreach (Transform child in levelList) Destroy(child.gameObject);
-        int number = 1;
-        Button firstLevelButton = null;
-        foreach (GameLevelDefinition level in flow.Configuration.Levels)
-        {
-            LevelSelectButton item = Instantiate(levelButtonPrefab, levelList);
-            item.Bind(flow, level, number++);
-            Button itemButton = item.GetComponent<Button>();
-            if (firstLevelButton == null && itemButton.interactable) firstLevelButton = itemButton;
-        }
-        ScrollRect scroll = levelList.GetComponentInParent<ScrollRect>();
-        if (scroll != null) scroll.scrollSensitivity = 28f;
+        if (levelSelectMap == null)
+            levelSelectMap = new LevelSelectMap(levelSelectPanel.transform, levelTitle.font, flow);
+        levelSelectMap.Open();
         SetPanel(levelSelectPanel);
-        if (eventSystem != null && firstLevelButton != null)
-            eventSystem.SetSelectedGameObject(firstLevelButton.gameObject);
     }
 
     public void OpenSettings()
