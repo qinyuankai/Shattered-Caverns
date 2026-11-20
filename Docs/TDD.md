@@ -282,8 +282,9 @@ Chunk
 - 同一 Prefab 内的 UI、音频与流程引用均序列化绑定。关卡中的玩家与交互组件在场景加载后查找。
 - UI 采用 uGUI 和 TextMeshPro。Canvas 使用 1600×900 参考分辨率与 Scale With Screen Size。
 - 主菜单背景使用 `Assets/Art/Backgrounds/MainMenuBackground.png`，按 Sprite (2D and UI) 导入，关闭 Mipmap 与纹理压缩，使用 Bilinear 过滤和 Clamp 包裹。
-- `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和左侧遮罩均关闭 Raycast Target，不阻挡菜单按钮。
-- 主菜单标题和按钮使用左上锚点排列；开始游戏为暖金色主按钮，其余功能使用深色次级按钮，现有 Button 事件保持序列化绑定。
+- `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和全屏遮罩均关闭 Raycast Target，不阻挡菜单按钮。
+- 主菜单标题使用保留原图比例的透明 Sprite `Assets/Art/UI/MainMenuTitle.png`。
+- 主菜单标题与开始、继续、选关居中排列，声音设置和退出分别锚定左下与右下。中央按钮共用切角木牌 Sprite，悬停及键盘选中使用带暖灯高光和碎片标记的 Sprite，禁用继续时压暗，存档有效时显示最近关卡名称，角落按钮使用文字颜色反馈，原有点击事件保持序列化绑定。
 - 选关界面沿用主菜单的深色、青绿色与暖金色色板；关卡项显示两位编号、配置名称和状态，已通关使用暖金强调、可探索使用明亮文字、未解锁使用可读的低对比度文字且禁用交互。
 - 关卡列表由 `ScrollRect`、顶部锚定的内容节点和纵向布局组成，可随配置增加项目；打开页面时只在可交互项目中选择第一个作为键盘或手柄焦点。
 - 设置界面使用三个独立音量卡片展示标签、用途说明、滑轨与百分比；打开页面时以 `SetValueWithoutNotify` 同步存档值并默认聚焦总音量，从暂停状态进入和返回时保持全局暂停。

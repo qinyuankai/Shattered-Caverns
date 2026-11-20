@@ -13,6 +13,7 @@ public class GameInterfaceController : MonoBehaviour
     [SerializeField] private GameObject resultPanel;
     [SerializeField] private GameObject hudPanel;
     [SerializeField] private Button continueButton;
+    [SerializeField] private TMP_Text continueLabel;
     [SerializeField] private Button nextLevelButton;
     [SerializeField] private Button retryButton;
     [SerializeField] private Image resultAccent;
@@ -92,8 +93,16 @@ public class GameInterfaceController : MonoBehaviour
 
     private void RefreshState()
     {
-        continueButton.interactable = flow.Configuration.FindLevel(flow.SaveStore.Data.lastLevelId) != null
-            && flow.SaveStore.IsUnlocked(flow.SaveStore.Data.lastLevelId);
+        string lastLevelId = flow.SaveStore.Data.lastLevelId;
+        GameLevelDefinition lastLevel = flow.Configuration.FindLevel(lastLevelId);
+        continueButton.interactable = lastLevel != null && flow.SaveStore.IsUnlocked(lastLevelId);
+        if (continueLabel != null)
+        {
+            continueLabel.text = continueButton.interactable && !string.IsNullOrEmpty(lastLevel.displayName)
+                ? $"<line-height=24><size=23>继续游戏</size>\n<size=15><color=#C9B38F>{lastLevel.displayName}</color></size>"
+                : "继续游戏";
+            continueLabel.color = continueButton.interactable ? Color.white : new Color(0.56f, 0.53f, 0.49f);
+        }
         switch (flow.State)
         {
             case GameFlowState.MainMenu:

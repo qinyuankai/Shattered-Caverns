@@ -13,6 +13,7 @@ using UnityEngine.UI;
 
 public static class GameInterfaceBuilder
 {
+    private const string MainMenuTitlePath = "Assets/Art/UI/MainMenuTitle.png";
     private const string MainMenuBackgroundPath = "Assets/Art/Backgrounds/MainMenuBackground.png";
     private static TMP_FontAsset font;
     private static readonly Color Ink = new Color(0.035f, 0.065f, 0.09f);
@@ -114,6 +115,8 @@ public static class GameInterfaceBuilder
         {
             Transform mainMenu = root.transform.Find("GameCanvas/MainMenuPanel");
             ApplyMainMenuStyle(mainMenu);
+            Assign(root.GetComponentInChildren<GameInterfaceController>(true), "continueLabel",
+                mainMenu.Find("ContinueButton/Label").GetComponent<TMP_Text>());
             PrefabUtility.SaveAsPrefabAsset(root, path);
         }
         finally
@@ -214,7 +217,9 @@ public static class GameInterfaceBuilder
                 Transform panel = canvas.Find(panelName);
                 if (panel != null && panel.GetComponent<CanvasGroup>() == null) panel.gameObject.AddComponent<CanvasGroup>();
             }
-            foreach (Button button in canvas.GetComponentsInChildren<Button>(true)) ApplyUnifiedButtonState(button);
+            Transform mainMenu = canvas.Find("MainMenuPanel");
+            foreach (Button button in canvas.GetComponentsInChildren<Button>(true))
+                if (mainMenu == null || !button.transform.IsChildOf(mainMenu)) ApplyUnifiedButtonState(button);
             PrefabUtility.SaveAsPrefabAsset(root, path);
         }
         finally
@@ -277,87 +282,89 @@ public static class GameInterfaceBuilder
             : existingShade.gameObject;
         shade.transform.SetParent(mainMenu, false);
         shade.transform.SetSiblingIndex(1);
-        RectTransform shadeRect = shade.GetComponent<RectTransform>();
-        shadeRect.anchorMin = Vector2.zero;
-        shadeRect.anchorMax = new Vector2(0.48f, 1f);
-        shadeRect.offsetMin = Vector2.zero;
-        shadeRect.offsetMax = Vector2.zero;
+        Stretch(shade.GetComponent<RectTransform>());
         Image shadeImage = shade.GetComponent<Image>();
-        shadeImage.color = new Color(0.01f, 0.02f, 0.035f, 0.38f);
+        shadeImage.color = new Color(0.01f, 0.02f, 0.035f, 0.22f);
         shadeImage.raycastTarget = false;
 
-        StyleMenuText(mainMenu.Find("Eyebrow"), "SHATTERED CAVERNS", new Vector2(130, -105), new Vector2(540, 35), 17, Gold);
-        StyleMenuText(mainMenu.Find("Title"), "破碎洞窟", new Vector2(125, -155), new Vector2(560, 95), 68, White, FontStyles.Bold, 7f);
-        StyleMenuText(mainMenu.Find("Subtitle"), "重组碎片  ·  连接前路", new Vector2(130, -265), new Vector2(520, 42), 21, Muted);
-
-        StyleMenuButton(mainMenu.Find("StartButton"), "开始游戏", new Vector2(130, -400), new Vector2(350, 60), true);
-        StyleMenuButton(mainMenu.Find("ContinueButton"), "继续游戏", new Vector2(130, -476), new Vector2(350, 54), false);
-        StyleMenuButton(mainMenu.Find("LevelsButton"), "选择关卡", new Vector2(130, -546), new Vector2(350, 54), false);
-        StyleMenuButton(mainMenu.Find("SettingsButton"), "设置", new Vector2(130, -616), new Vector2(350, 54), false);
-        StyleMenuButton(mainMenu.Find("QuitButton"), "退出游戏", new Vector2(130, -686), new Vector2(350, 54), false);
-        StyleMenuText(mainMenu.Find("Footer"), "每一次连接，都是一种可能。", new Vector2(130, -805), new Vector2(560, 30), 15, Muted);
-    }
-
-    private static void StyleMenuText(Transform target, string value, Vector2 position, Vector2 size,
-        float fontSize, Color color, FontStyles fontStyle = FontStyles.Normal, float characterSpacing = 0f)
-    {
-        if (target == null) return;
-        RectTransform rect = target.GetComponent<RectTransform>();
-        Place(rect, position, size, true);
-        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
-        text.text = value;
-        text.fontSize = fontSize;
-        text.color = color;
-        text.fontStyle = fontStyle;
-        text.characterSpacing = characterSpacing;
-        text.alignment = TextAlignmentOptions.TopLeft;
-        text.enableWordWrapping = false;
-    }
-
-    private static void StyleMenuButton(Transform target, string value, Vector2 position, Vector2 size, bool primary)
-    {
-        if (target == null) return;
-        Place(target.GetComponent<RectTransform>(), position, size, true);
-        Image image = target.GetComponent<Image>();
-        image.color = primary ? Gold : new Color(0.035f, 0.065f, 0.09f, 0.88f);
-        Button button = target.GetComponent<Button>();
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = primary ? new Color(1f, 0.9f, 0.7f) : new Color(0.72f, 0.95f, 0.88f);
-        colors.selectedColor = colors.highlightedColor;
-        colors.pressedColor = primary ? new Color(0.78f, 0.62f, 0.4f) : new Color(0.5f, 0.72f, 0.66f);
-        colors.disabledColor = new Color(0.38f, 0.42f, 0.43f, 0.5f);
-        colors.fadeDuration = 0.12f;
-        button.colors = colors;
-
-        Transform labelTransform = target.Find("Label");
-        if (labelTransform != null)
+        foreach (string name in new[] { "Eyebrow", "Subtitle", "Footer" })
         {
-            RectTransform labelRect = labelTransform.GetComponent<RectTransform>();
-            Place(labelRect, Vector2.zero, size - new Vector2(48, 4));
-            TextMeshProUGUI label = labelTransform.GetComponent<TextMeshProUGUI>();
-            label.text = primary ? value + "    →" : value;
-            label.fontSize = primary ? 24 : 22;
-            label.color = primary ? Ink : White;
-            label.alignment = TextAlignmentOptions.MidlineLeft;
-            label.fontStyle = primary ? FontStyles.Bold : FontStyles.Normal;
+            Transform decoration = mainMenu.Find(name);
+            if (decoration != null) Object.DestroyImmediate(decoration.gameObject);
         }
 
-        Transform existingAccent = target.Find("Accent");
-        GameObject accent = existingAccent == null
-            ? new GameObject("Accent", typeof(RectTransform), typeof(Image))
-            : existingAccent.gameObject;
-        accent.transform.SetParent(target, false);
-        accent.transform.SetAsFirstSibling();
-        RectTransform accentRect = accent.GetComponent<RectTransform>();
-        accentRect.anchorMin = Vector2.zero;
-        accentRect.anchorMax = new Vector2(0f, 1f);
-        accentRect.pivot = new Vector2(0f, 0.5f);
-        accentRect.anchoredPosition = Vector2.zero;
-        accentRect.sizeDelta = new Vector2(4f, 0f);
-        Image accentImage = accent.GetComponent<Image>();
-        accentImage.color = primary ? White : Accent;
-        accentImage.raycastTarget = false;
+        Transform title = mainMenu.Find("Title");
+        TextMeshProUGUI titleText = title.GetComponent<TextMeshProUGUI>();
+        if (titleText != null) Object.DestroyImmediate(titleText);
+        Image titleImage = title.GetComponent<Image>();
+        if (titleImage == null) titleImage = title.gameObject.AddComponent<Image>();
+        Place(titleImage.rectTransform, new Vector2(0, 190), new Vector2(470, 160));
+        titleImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(MainMenuTitlePath);
+        titleImage.preserveAspect = true;
+        titleImage.raycastTarget = false;
+
+        Vector2 center = new Vector2(0.5f, 0.5f);
+        Vector2 mainSize = new Vector2(320, 54);
+        Vector2 cornerSize = new Vector2(154, 48);
+        StyleMenuButton(mainMenu.Find("StartButton"), "开始游戏", center, new Vector2(0, 54), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("ContinueButton"), "继续游戏", center, new Vector2(0, -10), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("LevelsButton"), "选择关卡", center, new Vector2(0, -74), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("SettingsButton"), "声音设置", Vector2.zero, new Vector2(34, 26), cornerSize, 21);
+        StyleMenuButton(mainMenu.Find("QuitButton"), "退出游戏", Vector2.right, new Vector2(-34, 26), cornerSize, 21);
+    }
+
+    private static void StyleMenuButton(Transform target, string value, Vector2 anchor, Vector2 position,
+        Vector2 size, float fontSize)
+    {
+        RectTransform rect = target.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = anchor;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+
+        Image image = target.GetComponent<Image>();
+        bool framed = anchor.x == 0.5f;
+        image.color = framed ? Color.white : new Color(0f, 0f, 0f, 0.08f);
+        Transform existingFill = target.Find("ButtonFill");
+        if (existingFill != null) Object.DestroyImmediate(existingFill.gameObject);
+
+        Transform accent = target.Find("Accent");
+        if (accent != null) Object.DestroyImmediate(accent.gameObject);
+
+        TextMeshProUGUI label = target.Find("Label").GetComponent<TextMeshProUGUI>();
+        Stretch(label.rectTransform);
+        label.text = value;
+        label.fontSize = fontSize;
+        label.color = White;
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontStyle = FontStyles.Normal;
+        label.raycastTarget = false;
+
+        Button button = target.GetComponent<Button>();
+        button.targetGraphic = framed ? (Graphic)image : label;
+        if (framed)
+        {
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignNormal.png");
+            button.transition = Selectable.Transition.SpriteSwap;
+            SpriteState state = button.spriteState;
+            state.highlightedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignFocus.png");
+            state.selectedSprite = state.highlightedSprite;
+            state.pressedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignPressed.png");
+            state.disabledSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignDisabled.png");
+            button.spriteState = state;
+            label.margin = new Vector4(56f, 0f, 56f, 0f);
+            label.enableWordWrapping = false;
+            label.overflowMode = target.name == "ContinueButton" ? TextOverflowModes.Truncate : TextOverflowModes.Ellipsis;
+            return;
+        }
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 0.87f, 0.61f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = new Color(0.81f, 0.65f, 0.39f);
+        colors.disabledColor = new Color(0.58f, 0.62f, 0.64f, 0.62f);
+        colors.fadeDuration = 0.12f;
+        button.colors = colors;
     }
 
     private static void ApplySettingsStyle(Transform settings)
@@ -849,16 +856,15 @@ public static class GameInterfaceBuilder
 
         GameObject main = Panel(canvasObject.transform, "MainMenuPanel", Ink);
         Assign(ui, "mainMenuPanel", main);
-        Text(main.transform, "Eyebrow", "SHATTERED CAVERNS  /  破碎洞窟", new Vector2(130, -110), new Vector2(650, 45), 18, Accent, true);
-        Text(main.transform, "Title", "在破碎之处\n连接新的道路", new Vector2(125, -195), new Vector2(850, 180), 64, White, true);
-        Text(main.transform, "Subtitle", "观察洞窟 · 收集碎片 · 重构前路", new Vector2(130, -395), new Vector2(650, 50), 22, Muted, true);
-        Button(main.transform, "StartButton", "开始游戏     →", new Vector2(130, -500), new Vector2(390, 62), ui.StartGame, true, true);
+        GameObject menuTitle = new GameObject("Title", typeof(RectTransform), typeof(Image));
+        menuTitle.transform.SetParent(main.transform, false);
+        Button(main.transform, "StartButton", "开始游戏", new Vector2(130, -500), new Vector2(390, 62), ui.StartGame, true, true);
         Button continueButton = Button(main.transform, "ContinueButton", "继续游戏", new Vector2(130, -578), new Vector2(390, 54), ui.ContinueGame, true);
         Assign(ui, "continueButton", continueButton);
+        Assign(ui, "continueLabel", continueButton.transform.Find("Label").GetComponent<TMP_Text>());
         Button(main.transform, "LevelsButton", "选择关卡", new Vector2(130, -647), new Vector2(185, 54), ui.OpenLevelSelect, true);
         Button(main.transform, "SettingsButton", "设置", new Vector2(335, -647), new Vector2(185, 54), ui.OpenSettings, true);
         Button(main.transform, "QuitButton", "退出游戏", new Vector2(130, -716), new Vector2(390, 54), ui.QuitGame, true);
-        Text(main.transform, "Footer", "单人平台解谜  /  每一次连接，都是一种可能。", new Vector2(130, -825), new Vector2(850, 35), 16, Muted, true);
         ApplyMainMenuStyle(main.transform);
 
         GameObject levels = Page(canvasObject.transform, "LevelSelectPanel", "选择关卡", "从已经解锁的洞窟继续探索。", ui.Back);
