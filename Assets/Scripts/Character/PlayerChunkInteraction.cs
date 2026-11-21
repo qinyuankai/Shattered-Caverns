@@ -63,6 +63,11 @@ public class PlayerChunkInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (GameFlowController.Instance != null && GameFlowController.Instance.BlocksGameplayInput)
+        {
+            return;
+        }
+
         if (currentState == PlayerChunkInteractionState.Normal)
         {
             if (Input.GetKeyDown(KeyCode.F))
@@ -233,6 +238,11 @@ public class PlayerChunkInteraction : MonoBehaviour
         }
 
         ExitInteraction();
+    }
+
+    public void CancelCurrentInteraction()
+    {
+        if (currentState != PlayerChunkInteractionState.Normal) CancelInteraction();
     }
 
     private void CancelInteraction()

@@ -68,7 +68,7 @@ Docs/
 - 全局摄像机背景图片放入 `Art/Backgrounds`；区块内部背景放入 `Art/Chunks/Backgrounds`。如果使用摄像机纯色背景，则直接配置 Camera，不创建图片资源。
 - `Tile`、`Tile Palette`、物理材质、渲染设置等 Unity 功能配置资源放入 `Settings`，不放入 `Art`。
 - 当前预制体数量较少，暂不进一步分类；数量增加后再分类。
-- 当前场景只有一个，暂不进一步分类；场景增加后再按关卡或用途分类。
+- 当前场景包含 `MainMenu` 和玩法测试场景，均放在 `Assets/Scenes`；数量增加后再按关卡或用途分类。
 - 当前其他游戏资源数量较少，暂不建立更细的资源分类；后续需要时再定义。
 - 当前没有新增顶层目录的需要。确需新增时，应先说明用途和目录归属。
 - 游戏内对象、Prefab、场景和资源统一使用英文命名，不使用中文命名。
@@ -152,6 +152,10 @@ Background → Environment → Characters → Effects → Foreground → UI
 ```
 
 特效当前放在角色前、前景遮挡物后，即位于 `Characters` 和 `Foreground` 之间。
+
+- 游戏内 UI 使用 uGUI 与 TextMeshPro，全局 UI Prefab 为 `Assets/Resources/GameApplication.prefab`。
+- 关卡顺序、稳定关卡 ID 与音频引用由 `Assets/Settings/GameConfiguration.asset` 配置；关卡 ID 参与存档，不随意更名。
+- 全局暂停与区块操作暂停需协调恢复，避免各系统独立重设游戏时间。
 
 ## 八、文档维护
 

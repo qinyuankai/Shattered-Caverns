@@ -1,0 +1,991 @@
+using System.IO;
+using TMPro;
+using UnityEditor;
+using UnityEditor.Events;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.EventSystems;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public static class GameInterfaceBuilder
+{
+    private const string MainMenuTitlePath = "Assets/Art/UI/MainMenuTitle.png";
+    private const string MainMenuBackgroundPath = "Assets/Art/Backgrounds/MainMenuBackground.png";
+    private static TMP_FontAsset font;
+    private static readonly Color Ink = new Color(0.035f, 0.065f, 0.09f);
+    private static readonly Color Surface = new Color(0.075f, 0.13f, 0.16f);
+    private static readonly Color Accent = new Color(0.5f, 0.87f, 0.72f);
+    private static readonly Color Gold = new Color(0.91f, 0.66f, 0.29f);
+    private static readonly Color White = new Color(0.9f, 0.94f, 0.91f);
+    private static readonly Color Muted = new Color(0.55f, 0.68f, 0.69f);
+
+    [MenuItem("Tools/Shattered Caverns/Build Game Interface")]
+    public static void Build()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/GameApplication.prefab") != null)
+        {
+            Debug.LogWarning("GameApplication already exists. Edit the existing prefab instead of regenerating it.");
+            return;
+        }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        if (Resources.Load<TMP_Settings>("TMP Settings") == null)
+        {
+            AssetDatabase.importPackageCompleted += AfterPackageImport;
+            AssetDatabase.ImportPackage("Packages/com.unity.textmeshpro/Package Resources/TMP Essential Resources.unitypackage", false);
+            return;
+        }
+        AssetDatabase.Refresh();
+        if (AssetDatabase.IsValidFolder("Assets/TextMesh Pro"))
+            AssetDatabase.MoveAsset("Assets/TextMesh Pro", "Assets/Settings/TextMeshPro");
+        ConfigureRendering();
+        font = CreateFont();
+        GameConfiguration configuration = ScriptableObject.CreateInstance<GameConfiguration>();
+        AssetDatabase.CreateAsset(configuration, "Assets/Settings/GameConfiguration.asset");
+        SerializedObject config = new SerializedObject(configuration);
+        SerializedProperty levels = config.FindProperty("levels");
+        levels.arraySize = 1;
+        SerializedProperty first = levels.GetArrayElementAtIndex(0);
+        first.FindPropertyRelative("id").stringValue = "cavern-01";
+        first.FindPropertyRelative("displayName").stringValue = "初探洞窟";
+        first.FindPropertyRelative("scenePath").stringValue = "Assets/Scenes/URP2DSceneTemplate.unity";
+        config.ApplyModifiedPropertiesWithoutUndo();
+        BuildApplication(configuration);
+        Scene menu = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        GameObject cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
+        Camera camera = cameraObject.GetComponent<Camera>();
+        cameraObject.tag = "MainCamera";
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = Ink;
+        camera.orthographic = true;
+        cameraObject.transform.position = new Vector3(0f, 0f, -10f);
+        EditorSceneManager.SaveScene(menu, configuration.MainMenuScenePath);
+        EditorBuildSettings.scenes = new[]
+        {
+            new EditorBuildSettingsScene(configuration.MainMenuScenePath, true),
+            new EditorBuildSettingsScene(configuration.Levels[0].scenePath, true)
+        };
+        AssetDatabase.SaveAssets();
+        Debug.Log("Game interface created. Open MainMenu and press Play.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Responsive Layout")]
+    public static void ApplyResponsiveLayout()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            root.GetComponentInChildren<CanvasScaler>(true).matchWidthOrHeight = 1f;
+            RectTransform pause = root.transform.Find("GameCanvas/GameHUD/PauseButton").GetComponent<RectTransform>();
+            pause.anchorMin = pause.anchorMax = pause.pivot = Vector2.one;
+            pause.anchoredPosition = new Vector2(-40, -30);
+            Transform art = root.transform.Find("GameCanvas/MainMenuPanel/CavernIllustration");
+            for (int i = 0; i < 9; i++)
+            {
+                Transform block = art.Find("CavernBlock" + i);
+                if (block == null) continue;
+                block.GetComponent<RectTransform>().anchoredPosition = new Vector2(780 + i % 3 * 142, -285 - i / 3 * 142);
+            }
+            RectTransform caption = art.Find("Caption").GetComponent<RectTransform>();
+            caption.anchoredPosition = new Vector2(780, -760);
+            caption.sizeDelta = new Vector2(350, 45);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Main Menu Redesign %#m")]
+    public static void ApplyMainMenuRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        ConfigureMainMenuBackground();
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform mainMenu = root.transform.Find("GameCanvas/MainMenuPanel");
+            ApplyMainMenuStyle(mainMenu);
+            Assign(root.GetComponentInChildren<GameInterfaceController>(true), "continueLabel",
+                mainMenu.Find("ContinueButton/Label").GetComponent<TMP_Text>());
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Main menu redesign applied.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Settings Redesign")]
+    public static void ApplySettingsRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform settings = root.transform.Find("GameCanvas/SettingsPanel");
+            ApplySettingsStyle(settings);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Settings redesign applied.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Pause Redesign")]
+    public static void ApplyPauseRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ApplyPauseStyle(root.transform.Find("GameCanvas/PausePanel"));
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Pause redesign applied.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Result Redesign")]
+    public static void ApplyResultRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            GameInterfaceController ui = root.GetComponentInChildren<GameInterfaceController>(true);
+            ApplyResultStyle(root.transform.Find("GameCanvas/ResultPanel"), ui);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Result redesign applied.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply HUD Redesign")]
+    public static void ApplyHudRedesign()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ApplyHudStyle(root.transform.Find("GameCanvas/GameHUD"));
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("HUD redesign applied.");
+    }
+
+    [MenuItem("Tools/Shattered Caverns/Apply Interface Polish")]
+    public static void ApplyInterfacePolish()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        string path = "Assets/Resources/GameApplication.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            CanvasScaler scaler = root.GetComponentInChildren<CanvasScaler>(true);
+            scaler.matchWidthOrHeight = 1f;
+            Transform canvas = root.transform.Find("GameCanvas");
+            string[] panelNames = { "MainMenuPanel", "LevelSelectPanel", "SettingsPanel", "PausePanel", "ResultPanel" };
+            foreach (string panelName in panelNames)
+            {
+                Transform panel = canvas.Find(panelName);
+                if (panel != null && panel.GetComponent<CanvasGroup>() == null) panel.gameObject.AddComponent<CanvasGroup>();
+            }
+            Transform mainMenu = canvas.Find("MainMenuPanel");
+            foreach (Button button in canvas.GetComponentsInChildren<Button>(true))
+                if (mainMenu == null || !button.transform.IsChildOf(mainMenu)) ApplyUnifiedButtonState(button);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        Debug.Log("Interface polish applied.");
+    }
+
+    private static void ApplyUnifiedButtonState(Button button)
+    {
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.82f, 1f, 0.94f);
+        colors.selectedColor = new Color(0.91f, 0.72f, 0.4f);
+        colors.pressedColor = new Color(0.58f, 0.76f, 0.69f);
+        colors.disabledColor = new Color(0.42f, 0.47f, 0.48f, 0.48f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+    }
+
+    private static void ConfigureMainMenuBackground()
+    {
+        TextureImporter importer = AssetImporter.GetAtPath(MainMenuBackgroundPath) as TextureImporter;
+        if (importer == null) return;
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.SaveAndReimport();
+    }
+
+    private static void ApplyMainMenuStyle(Transform mainMenu)
+    {
+        Sprite backgroundSprite = AssetDatabase.LoadAssetAtPath<Sprite>(MainMenuBackgroundPath);
+        Transform oldIllustration = mainMenu.Find("CavernIllustration");
+        if (oldIllustration != null) Object.DestroyImmediate(oldIllustration.gameObject);
+
+        Transform existingBackground = mainMenu.Find("Background");
+        GameObject background = existingBackground == null
+            ? new GameObject("Background", typeof(RectTransform), typeof(Image), typeof(AspectRatioFitter))
+            : existingBackground.gameObject;
+        background.transform.SetParent(mainMenu, false);
+        background.transform.SetAsFirstSibling();
+        Stretch(background.GetComponent<RectTransform>());
+        Image backgroundImage = background.GetComponent<Image>();
+        backgroundImage.sprite = backgroundSprite;
+        backgroundImage.color = Color.white;
+        backgroundImage.raycastTarget = false;
+        AspectRatioFitter fitter = background.GetComponent<AspectRatioFitter>();
+        fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+        fitter.aspectRatio = backgroundSprite == null ? 16f / 9f : backgroundSprite.rect.width / backgroundSprite.rect.height;
+
+        Transform existingShade = mainMenu.Find("MenuShade");
+        GameObject shade = existingShade == null
+            ? new GameObject("MenuShade", typeof(RectTransform), typeof(Image))
+            : existingShade.gameObject;
+        shade.transform.SetParent(mainMenu, false);
+        shade.transform.SetSiblingIndex(1);
+        Stretch(shade.GetComponent<RectTransform>());
+        Image shadeImage = shade.GetComponent<Image>();
+        shadeImage.color = new Color(0.01f, 0.02f, 0.035f, 0.22f);
+        shadeImage.raycastTarget = false;
+
+        foreach (string name in new[] { "Eyebrow", "Subtitle", "Footer" })
+        {
+            Transform decoration = mainMenu.Find(name);
+            if (decoration != null) Object.DestroyImmediate(decoration.gameObject);
+        }
+
+        Transform title = mainMenu.Find("Title");
+        TextMeshProUGUI titleText = title.GetComponent<TextMeshProUGUI>();
+        if (titleText != null) Object.DestroyImmediate(titleText);
+        Image titleImage = title.GetComponent<Image>();
+        if (titleImage == null) titleImage = title.gameObject.AddComponent<Image>();
+        Place(titleImage.rectTransform, new Vector2(0, 190), new Vector2(470, 160));
+        titleImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(MainMenuTitlePath);
+        titleImage.preserveAspect = true;
+        titleImage.raycastTarget = false;
+
+        Vector2 center = new Vector2(0.5f, 0.5f);
+        Vector2 mainSize = new Vector2(320, 54);
+        Vector2 cornerSize = new Vector2(154, 48);
+        StyleMenuButton(mainMenu.Find("StartButton"), "开始游戏", center, new Vector2(0, 54), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("ContinueButton"), "继续游戏", center, new Vector2(0, -10), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("LevelsButton"), "选择关卡", center, new Vector2(0, -74), mainSize, 28);
+        StyleMenuButton(mainMenu.Find("SettingsButton"), "声音设置", Vector2.zero, new Vector2(34, 26), cornerSize, 21);
+        StyleMenuButton(mainMenu.Find("QuitButton"), "退出游戏", Vector2.right, new Vector2(-34, 26), cornerSize, 21);
+    }
+
+    private static void StyleMenuButton(Transform target, string value, Vector2 anchor, Vector2 position,
+        Vector2 size, float fontSize)
+    {
+        RectTransform rect = target.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = anchor;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+
+        Image image = target.GetComponent<Image>();
+        bool framed = anchor.x == 0.5f;
+        image.color = framed ? Color.white : new Color(0f, 0f, 0f, 0.08f);
+        Transform existingFill = target.Find("ButtonFill");
+        if (existingFill != null) Object.DestroyImmediate(existingFill.gameObject);
+
+        Transform accent = target.Find("Accent");
+        if (accent != null) Object.DestroyImmediate(accent.gameObject);
+
+        TextMeshProUGUI label = target.Find("Label").GetComponent<TextMeshProUGUI>();
+        Stretch(label.rectTransform);
+        label.text = value;
+        label.fontSize = fontSize;
+        label.color = White;
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontStyle = FontStyles.Normal;
+        label.raycastTarget = false;
+
+        Button button = target.GetComponent<Button>();
+        button.targetGraphic = framed ? (Graphic)image : label;
+        if (framed)
+        {
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignNormal.png");
+            button.transition = Selectable.Transition.SpriteSwap;
+            SpriteState state = button.spriteState;
+            state.highlightedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignFocus.png");
+            state.selectedSprite = state.highlightedSprite;
+            state.pressedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignPressed.png");
+            state.disabledSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/MainMenuSignDisabled.png");
+            button.spriteState = state;
+            label.alignment = TextAlignmentOptions.Midline;
+            label.margin = new Vector4(56f, 0f, 56f, 0f);
+            label.enableWordWrapping = false;
+            label.overflowMode = target.name == "ContinueButton" ? TextOverflowModes.Truncate : TextOverflowModes.Ellipsis;
+            return;
+        }
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 0.87f, 0.61f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = new Color(0.81f, 0.65f, 0.39f);
+        colors.disabledColor = new Color(0.58f, 0.62f, 0.64f, 0.62f);
+        colors.fadeDuration = 0.12f;
+        button.colors = colors;
+    }
+
+    private static void ApplySettingsStyle(Transform settings)
+    {
+        if (settings == null) return;
+        settings.GetComponent<Image>().color = new Color(Ink.r, Ink.g, Ink.b, 0.985f);
+        StyleSettingsHeading(settings.Find("Title"), "声音设置", new Vector2(0, 300), new Vector2(900, 75), 46, White);
+        StyleSettingsHeading(settings.Find("Subtitle"), "调整洞窟中的声音层次，修改会自动保存。", new Vector2(0, 238), new Vector2(900, 38), 18, Muted);
+        StyleVolumeRow(settings, "Master", "总音量", "控制游戏中的全部声音", 115);
+        StyleVolumeRow(settings, "Music", "背景音乐", "控制环境氛围与背景音乐", 0);
+        StyleVolumeRow(settings, "Sound", "游戏音效", "控制按钮、交互与玩法反馈", -115);
+
+        Transform back = settings.Find("BackButton");
+        if (back != null)
+        {
+            Place(back.GetComponent<RectTransform>(), new Vector2(0, -312), new Vector2(300, 56));
+            StyleSettingsButton(back);
+        }
+    }
+
+    private static void StyleSettingsHeading(Transform target, string value, Vector2 position, Vector2 size, float fontSize, Color color)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.color = color;
+        text.alignment = TextAlignmentOptions.Center;
+    }
+
+    private static void StyleVolumeRow(Transform settings, string prefix, string title, string description, float y)
+    {
+        Transform existingCard = settings.Find(prefix + "Card");
+        GameObject card = existingCard == null
+            ? new GameObject(prefix + "Card", typeof(RectTransform), typeof(Image))
+            : existingCard.gameObject;
+        card.transform.SetParent(settings, false);
+        card.transform.SetSiblingIndex(2);
+        Place(card.GetComponent<RectTransform>(), new Vector2(0, y), new Vector2(820, 96));
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.color = new Color(Surface.r, Surface.g, Surface.b, 0.82f);
+        cardImage.raycastTarget = false;
+
+        Transform labelTarget = settings.Find(prefix + "Label");
+        if (labelTarget != null)
+        {
+            Place(labelTarget.GetComponent<RectTransform>(), new Vector2(-300, y + 15), new Vector2(180, 34));
+            TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+            label.text = title;
+            label.fontSize = 22;
+            label.fontStyle = FontStyles.Bold;
+            label.color = White;
+            label.alignment = TextAlignmentOptions.MidlineLeft;
+        }
+
+        Transform descriptionTarget = settings.Find(prefix + "Description");
+        GameObject descriptionObject = descriptionTarget == null
+            ? new GameObject(prefix + "Description", typeof(RectTransform), typeof(TextMeshProUGUI))
+            : descriptionTarget.gameObject;
+        descriptionObject.transform.SetParent(settings, false);
+        Place(descriptionObject.GetComponent<RectTransform>(), new Vector2(-300, y - 18), new Vector2(230, 26));
+        TextMeshProUGUI descriptionText = descriptionObject.GetComponent<TextMeshProUGUI>();
+        descriptionText.text = description;
+        descriptionText.font = font == null ? AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Settings/Fonts/CavernsChinese.asset") : font;
+        descriptionText.fontSize = 14;
+        descriptionText.color = Muted;
+        descriptionText.alignment = TextAlignmentOptions.MidlineLeft;
+        descriptionText.raycastTarget = false;
+        descriptionText.enableWordWrapping = false;
+
+        Transform valueTarget = settings.Find(prefix + "Value");
+        if (valueTarget != null)
+        {
+            Place(valueTarget.GetComponent<RectTransform>(), new Vector2(334, y), new Vector2(90, 40));
+            TextMeshProUGUI value = valueTarget.GetComponent<TextMeshProUGUI>();
+            value.fontSize = 21;
+            value.fontStyle = FontStyles.Bold;
+            value.color = Accent;
+            value.alignment = TextAlignmentOptions.Center;
+        }
+
+        Transform sliderTarget = settings.Find(prefix + "Slider");
+        if (sliderTarget == null) return;
+        Place(sliderTarget.GetComponent<RectTransform>(), new Vector2(82, y), new Vector2(380, 46));
+        Slider slider = sliderTarget.GetComponent<Slider>();
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.navigation = new Navigation { mode = Navigation.Mode.Vertical };
+        ColorBlock colors = slider.colors;
+        colors.normalColor = White;
+        colors.highlightedColor = Accent;
+        colors.selectedColor = Gold;
+        colors.pressedColor = new Color(0.7f, 0.94f, 0.84f);
+        colors.disabledColor = new Color(0.35f, 0.42f, 0.43f, 0.5f);
+        colors.fadeDuration = 0.1f;
+        slider.colors = colors;
+
+        Transform track = sliderTarget.Find("Track");
+        if (track != null)
+        {
+            Place(track.GetComponent<RectTransform>(), Vector2.zero, new Vector2(380, 10));
+            track.GetComponent<Image>().color = new Color(0.16f, 0.25f, 0.27f, 1f);
+        }
+        Transform fill = sliderTarget.Find("FillArea/Fill");
+        if (fill != null)
+        {
+            RectTransform fillRect = fill.GetComponent<RectTransform>();
+            Stretch(fillRect);
+            fillRect.sizeDelta = new Vector2(0, -34);
+            fill.GetComponent<Image>().color = Accent;
+        }
+        Transform handle = sliderTarget.Find("HandleArea/Handle");
+        if (handle != null)
+        {
+            Place(handle.GetComponent<RectTransform>(), Vector2.zero, new Vector2(22, 34));
+            handle.GetComponent<Image>().color = White;
+        }
+    }
+
+    private static void StyleSettingsButton(Transform target)
+    {
+        target.GetComponent<Image>().color = new Color(Surface.r, Surface.g, Surface.b, 0.95f);
+        Button button = target.GetComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.75f, 1f, 0.9f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = new Color(0.45f, 0.7f, 0.6f);
+        button.colors = colors;
+        Transform labelTarget = target.Find("Label");
+        if (labelTarget == null) return;
+        TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+        label.text = "返回";
+        label.fontSize = 21;
+        label.color = White;
+    }
+
+    private static void ApplyPauseStyle(Transform pause)
+    {
+        if (pause == null) return;
+        Image overlay = pause.GetComponent<Image>();
+        overlay.color = new Color(0.01f, 0.025f, 0.04f, 0.72f);
+
+        Transform existingCard = pause.Find("ContentCard");
+        GameObject card = existingCard == null
+            ? new GameObject("ContentCard", typeof(RectTransform), typeof(Image))
+            : existingCard.gameObject;
+        card.transform.SetParent(pause, false);
+        card.transform.SetAsFirstSibling();
+        Place(card.GetComponent<RectTransform>(), Vector2.zero, new Vector2(620, 650));
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.color = new Color(Surface.r, Surface.g, Surface.b, 0.97f);
+        cardImage.raycastTarget = false;
+
+        StylePauseText(pause.Find("Title"), "暂停探索", new Vector2(0, 245), new Vector2(500, 72), 44, White, FontStyles.Bold);
+        StylePauseText(pause.Find("Subtitle"), "前路仍在，稍作停留。", new Vector2(0, 188), new Vector2(500, 34), 18, Muted, FontStyles.Normal);
+        StylePauseButton(pause.Find("ResumeButton"), "继续探索", new Vector2(0, 95), new Vector2(420, 62), PauseButtonStyle.Primary);
+        StylePauseButton(pause.Find("SettingsButton"), "声音设置", new Vector2(0, 18), new Vector2(420, 54), PauseButtonStyle.Secondary);
+        StylePauseButton(pause.Find("RestartButton"), "重新开始本关", new Vector2(0, -50), new Vector2(420, 54), PauseButtonStyle.Warning);
+        StylePauseButton(pause.Find("MenuButton"), "返回主菜单", new Vector2(0, -118), new Vector2(420, 54), PauseButtonStyle.Secondary);
+        StylePauseText(pause.Find("RestartHint"), "重新开始会重置本关；关卡解锁与声音设置会保留。", new Vector2(0, -225), new Vector2(500, 54), 15, Muted, FontStyles.Normal);
+
+        Transform rule = pause.Find("Divider");
+        GameObject ruleObject = rule == null
+            ? new GameObject("Divider", typeof(RectTransform), typeof(Image))
+            : rule.gameObject;
+        ruleObject.transform.SetParent(pause, false);
+        Place(ruleObject.GetComponent<RectTransform>(), new Vector2(0, 157), new Vector2(420, 1));
+        Image ruleImage = ruleObject.GetComponent<Image>();
+        ruleImage.color = new Color(Accent.r, Accent.g, Accent.b, 0.28f);
+        ruleImage.raycastTarget = false;
+    }
+
+    private enum PauseButtonStyle
+    {
+        Primary,
+        Secondary,
+        Warning
+    }
+
+    private static void StylePauseText(Transform target, string value, Vector2 position, Vector2 size,
+        float fontSize, Color color, FontStyles fontStyle)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.color = color;
+        text.fontStyle = fontStyle;
+        text.alignment = TextAlignmentOptions.Center;
+    }
+
+    private static void StylePauseButton(Transform target, string value, Vector2 position, Vector2 size, PauseButtonStyle style)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        Image image = target.GetComponent<Image>();
+        image.color = style == PauseButtonStyle.Primary
+            ? Gold
+            : style == PauseButtonStyle.Warning
+                ? new Color(0.27f, 0.15f, 0.14f, 1f)
+                : new Color(Ink.r, Ink.g, Ink.b, 0.82f);
+        Button button = target.GetComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = style == PauseButtonStyle.Warning
+            ? new Color(1f, 0.72f, 0.63f)
+            : new Color(0.78f, 1f, 0.91f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = style == PauseButtonStyle.Warning
+            ? new Color(0.72f, 0.45f, 0.4f)
+            : new Color(0.52f, 0.72f, 0.65f);
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+        Transform labelTarget = target.Find("Label");
+        if (labelTarget == null) return;
+        TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+        label.text = style == PauseButtonStyle.Primary ? value + "    →" : value;
+        label.fontSize = style == PauseButtonStyle.Primary ? 23 : 20;
+        label.fontStyle = style == PauseButtonStyle.Primary ? FontStyles.Bold : FontStyles.Normal;
+        label.color = style == PauseButtonStyle.Primary ? Ink : White;
+    }
+
+    private static void ApplyResultStyle(Transform result, GameInterfaceController ui)
+    {
+        if (result == null || ui == null) return;
+        result.GetComponent<Image>().color = new Color(0.01f, 0.025f, 0.04f, 0.78f);
+
+        Transform existingCard = result.Find("ContentCard");
+        GameObject card = existingCard == null
+            ? new GameObject("ContentCard", typeof(RectTransform), typeof(Image))
+            : existingCard.gameObject;
+        card.transform.SetParent(result, false);
+        card.transform.SetAsFirstSibling();
+        Place(card.GetComponent<RectTransform>(), Vector2.zero, new Vector2(700, 600));
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.color = new Color(Surface.r, Surface.g, Surface.b, 0.98f);
+        cardImage.raycastTarget = false;
+
+        Transform existingAccent = result.Find("StatusAccent");
+        GameObject accent = existingAccent == null
+            ? new GameObject("StatusAccent", typeof(RectTransform), typeof(Image))
+            : existingAccent.gameObject;
+        accent.transform.SetParent(result, false);
+        accent.transform.SetSiblingIndex(1);
+        Place(accent.GetComponent<RectTransform>(), new Vector2(0, 266), new Vector2(700, 6));
+        Image accentImage = accent.GetComponent<Image>();
+        accentImage.color = Gold;
+        accentImage.raycastTarget = false;
+        Assign(ui, "resultAccent", accentImage);
+
+        StyleResultText(result.Find("Title"), new Vector2(0, 185), new Vector2(580, 82), 48, FontStyles.Bold);
+        StyleResultText(result.Find("Description"), new Vector2(0, 105), new Vector2(570, 58), 19, FontStyles.Normal);
+        StyleResultButton(result.Find("NextButton"), "继续前往下一关    →", new Vector2(0, 20), new Vector2(430, 62), true, false);
+        StyleResultButton(result.Find("RetryButton"), "重新开始本关", new Vector2(0, -58), new Vector2(430, 54), false, false);
+        StyleResultButton(result.Find("MenuButton"), "返回主菜单", new Vector2(0, -126), new Vector2(430, 54), false, true);
+
+        Transform retry = result.Find("RetryButton");
+        if (retry != null) Assign(ui, "retryButton", retry.GetComponent<Button>());
+    }
+
+    private static void StyleResultText(Transform target, Vector2 position, Vector2 size, float fontSize, FontStyles fontStyle)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
+        text.fontSize = fontSize;
+        text.fontStyle = fontStyle;
+        text.alignment = TextAlignmentOptions.Center;
+        if (fontStyle == FontStyles.Normal) text.color = Muted;
+    }
+
+    private static void StyleResultButton(Transform target, string value, Vector2 position, Vector2 size, bool primary, bool subdued)
+    {
+        if (target == null) return;
+        Place(target.GetComponent<RectTransform>(), position, size);
+        Image image = target.GetComponent<Image>();
+        image.color = primary ? Gold : new Color(Ink.r, Ink.g, Ink.b, subdued ? 0.58f : 0.86f);
+        Button button = target.GetComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = primary ? new Color(1f, 0.88f, 0.66f) : new Color(0.78f, 1f, 0.91f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = primary ? new Color(0.78f, 0.6f, 0.36f) : new Color(0.5f, 0.7f, 0.63f);
+        colors.fadeDuration = 0.1f;
+        button.colors = colors;
+        Transform labelTarget = target.Find("Label");
+        if (labelTarget == null) return;
+        TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+        label.text = value;
+        label.fontSize = primary ? 22 : 20;
+        label.fontStyle = primary ? FontStyles.Bold : FontStyles.Normal;
+        label.color = primary ? Ink : White;
+    }
+
+    private static void ApplyHudStyle(Transform hud)
+    {
+        if (hud == null) return;
+        Image hudImage = hud.GetComponent<Image>();
+        hudImage.color = Color.clear;
+        hudImage.raycastTarget = false;
+
+        Transform existingStatus = hud.Find("StatusCard");
+        GameObject status = existingStatus == null
+            ? new GameObject("StatusCard", typeof(RectTransform), typeof(Image))
+            : existingStatus.gameObject;
+        status.transform.SetParent(hud, false);
+        status.transform.SetAsFirstSibling();
+        RectTransform statusRect = status.GetComponent<RectTransform>();
+        statusRect.anchorMin = statusRect.anchorMax = statusRect.pivot = new Vector2(0f, 1f);
+        statusRect.anchoredPosition = new Vector2(28, -28);
+        statusRect.sizeDelta = new Vector2(390, 250);
+        Image statusImage = status.GetComponent<Image>();
+        statusImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.84f);
+        statusImage.raycastTarget = false;
+
+        Transform titleTarget = hud.Find("LevelTitle");
+        if (titleTarget != null)
+        {
+            Place(titleTarget.GetComponent<RectTransform>(), new Vector2(52, -48), new Vector2(320, 40), true);
+            TextMeshProUGUI title = titleTarget.GetComponent<TextMeshProUGUI>();
+            title.fontSize = 24;
+            title.fontStyle = FontStyles.Bold;
+            title.color = White;
+            title.alignment = TextAlignmentOptions.TopLeft;
+        }
+
+        Transform progressTarget = hud.Find("FragmentProgress");
+        if (progressTarget != null)
+        {
+            Place(progressTarget.GetComponent<RectTransform>(), new Vector2(52, -96), new Vector2(320, 160), true);
+            TextMeshProUGUI progress = progressTarget.GetComponent<TextMeshProUGUI>();
+            progress.fontSize = 17;
+            progress.lineSpacing = 8f;
+            progress.color = new Color(0.78f, 0.86f, 0.84f);
+            progress.alignment = TextAlignmentOptions.TopLeft;
+        }
+
+        Transform pauseTarget = hud.Find("PauseButton");
+        if (pauseTarget != null)
+        {
+            RectTransform pauseRect = pauseTarget.GetComponent<RectTransform>();
+            pauseRect.anchorMin = pauseRect.anchorMax = pauseRect.pivot = Vector2.one;
+            pauseRect.anchoredPosition = new Vector2(-30, -28);
+            pauseRect.sizeDelta = new Vector2(190, 46);
+            pauseTarget.GetComponent<Image>().color = new Color(Ink.r, Ink.g, Ink.b, 0.88f);
+            Transform labelTarget = pauseTarget.Find("Label");
+            if (labelTarget != null)
+            {
+                TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
+                label.text = "暂停    Esc";
+                label.fontSize = 18;
+                label.color = White;
+            }
+        }
+
+        Transform existingHint = hud.Find("HintCard");
+        GameObject hintCard = existingHint == null
+            ? new GameObject("HintCard", typeof(RectTransform), typeof(Image))
+            : existingHint.gameObject;
+        hintCard.transform.SetParent(hud, false);
+        hintCard.transform.SetSiblingIndex(1);
+        RectTransform hintRect = hintCard.GetComponent<RectTransform>();
+        hintRect.anchorMin = hintRect.anchorMax = hintRect.pivot = new Vector2(0.5f, 0f);
+        hintRect.anchoredPosition = new Vector2(0, 26);
+        hintRect.sizeDelta = new Vector2(980, 52);
+        Image hintImage = hintCard.GetComponent<Image>();
+        hintImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.8f);
+        hintImage.raycastTarget = false;
+
+        Transform hintTarget = hud.Find("InteractionHint");
+        if (hintTarget != null)
+        {
+            RectTransform hint = hintTarget.GetComponent<RectTransform>();
+            hint.anchorMin = hint.anchorMax = hint.pivot = new Vector2(0.5f, 0f);
+            hint.anchoredPosition = new Vector2(0, 26);
+            hint.sizeDelta = new Vector2(920, 48);
+            TextMeshProUGUI hintText = hintTarget.GetComponent<TextMeshProUGUI>();
+            hintText.fontSize = 18;
+            hintText.fontStyle = FontStyles.Bold;
+            hintText.alignment = TextAlignmentOptions.Center;
+            hintText.enableWordWrapping = false;
+        }
+    }
+
+    private static void AfterPackageImport(string packageName)
+    {
+        AssetDatabase.importPackageCompleted -= AfterPackageImport;
+        EditorApplication.delayCall += Build;
+    }
+
+    private static void ConfigureRendering()
+    {
+        if (GraphicsSettings.defaultRenderPipeline != null) return;
+        Renderer2DData renderer = ScriptableObject.CreateInstance<Renderer2DData>();
+        AssetDatabase.CreateAsset(renderer, "Assets/Settings/CavernsRenderer2D.asset");
+        UnityEngine.Rendering.ResourceReloader.ReloadAllNullIn(renderer, UniversalRenderPipelineAsset.packagePath);
+        UniversalRenderPipelineAsset pipeline = UniversalRenderPipelineAsset.Create(renderer);
+        AssetDatabase.CreateAsset(pipeline, "Assets/Settings/CavernsPipeline.asset");
+        GraphicsSettings.defaultRenderPipeline = pipeline;
+        EditorUtility.SetDirty(renderer);
+    }
+
+    private static TMP_FontAsset CreateFont()
+    {
+        Font source = AssetDatabase.LoadAssetAtPath<Font>("Assets/Settings/Fonts/NotoSansSC.ttf");
+        TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(source, 48, 6,
+            UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048);
+        asset.name = "CavernsChinese";
+        AssetDatabase.CreateAsset(asset, "Assets/Settings/Fonts/CavernsChinese.asset");
+        asset.material.name = "CavernsChinese Material";
+        asset.atlasTexture.name = "CavernsChinese Atlas";
+        AssetDatabase.AddObjectToAsset(asset.material, asset);
+        AssetDatabase.AddObjectToAsset(asset.atlasTexture, asset);
+        SerializedObject settings = new SerializedObject(TMP_Settings.instance);
+        settings.FindProperty("m_defaultFontAsset").objectReferenceValue = asset;
+        settings.ApplyModifiedPropertiesWithoutUndo();
+        return asset;
+    }
+
+    private static void BuildApplication(GameConfiguration configuration)
+    {
+        GameObject root = new GameObject("GameApplication");
+        GameFlowController flow = root.AddComponent<GameFlowController>();
+        GameAudioPlayer audio = root.AddComponent<GameAudioPlayer>();
+        AudioSource music = new GameObject("MusicPlayer", typeof(AudioSource)).GetComponent<AudioSource>();
+        music.transform.SetParent(root.transform);
+        music.loop = true;
+        music.playOnAwake = false;
+        AudioSource sound = new GameObject("SoundPlayer", typeof(AudioSource)).GetComponent<AudioSource>();
+        sound.transform.SetParent(root.transform);
+        sound.playOnAwake = false;
+        Assign(audio, "musicSource", music);
+        Assign(audio, "soundSource", sound);
+        GameObject events = new GameObject("UIEventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        events.transform.SetParent(root.transform);
+        GameObject canvasObject = new GameObject("GameCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        canvasObject.transform.SetParent(root.transform);
+        canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        canvasObject.GetComponent<Canvas>().sortingOrder = 100;
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1600, 900);
+        scaler.matchWidthOrHeight = 1f;
+        GameInterfaceController ui = canvasObject.AddComponent<GameInterfaceController>();
+        Assign(flow, "configuration", configuration);
+        Assign(flow, "audioPlayer", audio);
+        Assign(flow, "gameInterface", ui);
+        Assign(ui, "eventSystem", events.GetComponent<EventSystem>());
+
+        GameObject hud = Panel(canvasObject.transform, "GameHUD", Color.clear);
+        Assign(ui, "hudPanel", hud);
+        TextMeshProUGUI levelTitle = Text(hud.transform, "LevelTitle", "初探洞窟", new Vector2(40, -35), new Vector2(500, 45), 25, White, true);
+        Assign(ui, "levelTitle", levelTitle);
+        Button pause = Button(hud.transform, "PauseButton", "暂停  Esc", new Vector2(1320, -30), new Vector2(220, 48), ui.OpenPause, true);
+        RectTransform pauseRect = pause.GetComponent<RectTransform>();
+        pauseRect.anchorMin = pauseRect.anchorMax = pauseRect.pivot = Vector2.one;
+        pauseRect.anchoredPosition = new Vector2(-40, -30);
+        pause.GetComponent<Image>().color = Surface;
+        Assign(ui, "fragmentProgress", Text(hud.transform, "FragmentProgress", "", new Vector2(40, -95), new Vector2(340, 240), 20, White, true));
+        TextMeshProUGUI hint = Text(hud.transform, "InteractionHint", "", new Vector2(0, -395), new Vector2(1200, 55), 20, Accent);
+        Assign(ui, "interactionHint", hint);
+
+        GameObject main = Panel(canvasObject.transform, "MainMenuPanel", Ink);
+        Assign(ui, "mainMenuPanel", main);
+        GameObject menuTitle = new GameObject("Title", typeof(RectTransform), typeof(Image));
+        menuTitle.transform.SetParent(main.transform, false);
+        Button(main.transform, "StartButton", "开始游戏", new Vector2(130, -500), new Vector2(390, 62), ui.StartGame, true, true);
+        Button continueButton = Button(main.transform, "ContinueButton", "继续游戏", new Vector2(130, -578), new Vector2(390, 54), ui.ContinueGame, true);
+        Assign(ui, "continueButton", continueButton);
+        Assign(ui, "continueLabel", continueButton.transform.Find("Label").GetComponent<TMP_Text>());
+        Button(main.transform, "LevelsButton", "选择关卡", new Vector2(130, -647), new Vector2(185, 54), ui.OpenLevelSelect, true);
+        Button(main.transform, "SettingsButton", "设置", new Vector2(335, -647), new Vector2(185, 54), ui.OpenSettings, true);
+        Button(main.transform, "QuitButton", "退出游戏", new Vector2(130, -716), new Vector2(390, 54), ui.QuitGame, true);
+        ApplyMainMenuStyle(main.transform);
+
+        GameObject levels = Panel(canvasObject.transform, "LevelSelectPanel", Ink);
+        Text(levels.transform, "Title", "选择关卡", new Vector2(0, 295), new Vector2(900, 80), 48, White);
+        Button(levels.transform, "BackButton", "返回", new Vector2(0, -330), new Vector2(280, 55), ui.Back);
+        Assign(ui, "levelSelectPanel", levels);
+
+        GameObject settings = Page(canvasObject.transform, "SettingsPanel", "声音设置", "调整你的洞窟声景。设置会自动保留。", ui.Back);
+        Assign(ui, "settingsPanel", settings);
+        MakeSlider(settings.transform, ui, "Master", "总音量", 85);
+        MakeSlider(settings.transform, ui, "Music", "背景音乐", -25);
+        MakeSlider(settings.transform, ui, "Sound", "音效", -135);
+
+        GameObject pausePanel = Panel(canvasObject.transform, "PausePanel", new Color(Ink.r, Ink.g, Ink.b, 0.96f));
+        Assign(ui, "pausePanel", pausePanel);
+        Text(pausePanel.transform, "Title", "暂停探索", new Vector2(0, 245), new Vector2(600, 85), 48, White);
+        Text(pausePanel.transform, "Subtitle", "前路仍在，稍作停留。", new Vector2(0, 170), new Vector2(600, 45), 22, Muted);
+        Button(pausePanel.transform, "ResumeButton", "继续探索", new Vector2(0, 70), new Vector2(390, 62), ui.Resume, false, true);
+        Button(pausePanel.transform, "SettingsButton", "声音设置", new Vector2(0, -10), new Vector2(390, 54), ui.OpenSettings);
+        Button(pausePanel.transform, "RestartButton", "重新开始本关", new Vector2(0, -80), new Vector2(390, 54), ui.RestartLevel);
+        Button(pausePanel.transform, "MenuButton", "返回主菜单", new Vector2(0, -150), new Vector2(390, 54), ui.ReturnToMainMenu);
+        Text(pausePanel.transform, "RestartHint", "重新开始将重置本关，已解锁关卡与设置会保留。", new Vector2(0, -255), new Vector2(900, 45), 18, Muted);
+
+        GameObject result = Panel(canvasObject.transform, "ResultPanel", new Color(Ink.r, Ink.g, Ink.b, 0.97f));
+        Assign(ui, "resultPanel", result);
+        Assign(ui, "resultTitle", Text(result.transform, "Title", "洞窟已贯通", new Vector2(0, 210), new Vector2(900, 90), 54, Accent));
+        Assign(ui, "resultDescription", Text(result.transform, "Description", "", new Vector2(0, 110), new Vector2(1000, 60), 22, Muted));
+        Assign(ui, "nextLevelButton", Button(result.transform, "NextButton", "下一关", new Vector2(0, 10), new Vector2(390, 62), ui.NextLevel, false, true));
+        Assign(ui, "retryButton", Button(result.transform, "RetryButton", "重新开始本关", new Vector2(0, -75), new Vector2(390, 54), ui.RestartLevel));
+        Button(result.transform, "MenuButton", "返回主菜单", new Vector2(0, -150), new Vector2(390, 54), ui.ReturnToMainMenu);
+
+        Assign(ui, "message", Text(canvasObject.transform, "Message", "", new Vector2(0, -330), new Vector2(1300, 65), 22, Accent));
+        GameObject curtain = Panel(canvasObject.transform, "Transition", Ink);
+        CanvasGroup group = curtain.AddComponent<CanvasGroup>(); group.alpha = 0; group.blocksRaycasts = false;
+        Assign(ui, "transition", group);
+        main.SetActive(true); levels.SetActive(false); settings.SetActive(false);
+        pausePanel.SetActive(false); result.SetActive(false); hud.SetActive(false);
+        PrefabUtility.SaveAsPrefabAsset(root, "Assets/Resources/GameApplication.prefab");
+        Object.DestroyImmediate(root);
+    }
+
+    private static void DrawCavern(Transform parent)
+    {
+        Transform art = Panel(parent, "CavernIllustration", Color.clear).transform;
+        for (int i = 0; i < 9; i++)
+        {
+            float x = 780 + i % 3 * 142;
+            float y = -285 - i / 3 * 142;
+            if (i == 2 || i == 6) continue;
+            GameObject block = Panel(art, "CavernBlock" + i, i == 4 ? new Color(0.14f, 0.3f, 0.29f) : Surface);
+            Place(block.GetComponent<RectTransform>(), new Vector2(x, y), new Vector2(130, 130), true);
+            GameObject line = Panel(block.transform, "Path", i == 4 ? Accent : Muted);
+            Place(line.GetComponent<RectTransform>(), Vector2.zero, new Vector2(90, 3));
+            if (i == 4)
+            {
+                GameObject dot = Panel(block.transform, "Fragment", Accent);
+                Place(dot.GetComponent<RectTransform>(), new Vector2(0, 26), new Vector2(17, 17));
+                dot.transform.localRotation = Quaternion.Euler(0, 0, 45);
+            }
+        }
+        Text(art, "Caption", "碎片重组，前路重现。", new Vector2(780, -760), new Vector2(350, 45), 20, Muted, true);
+    }
+
+    private static GameObject Page(Transform parent, string name, string title, string subtitle, UnityAction back)
+    {
+        GameObject page = Panel(parent, name, Ink);
+        Text(page.transform, "Title", title, new Vector2(0, 295), new Vector2(900, 80), 48, White);
+        Text(page.transform, "Subtitle", subtitle, new Vector2(0, 225), new Vector2(1000, 50), 22, Muted);
+        Button(page.transform, "BackButton", "返回", new Vector2(0, -330), new Vector2(280, 55), back);
+        return page;
+    }
+
+    private static void MakeSlider(Transform parent, GameInterfaceController ui, string name, string label, float y)
+    {
+        Text(parent, name + "Label", label, new Vector2(-285, y + 15), new Vector2(180, 45), 24, White);
+        TMP_Text value = Text(parent, name + "Value", "", new Vector2(310, y + 15), new Vector2(120, 45), 22, Accent);
+        GameObject root = new GameObject(name + "Slider", typeof(RectTransform), typeof(Slider));
+        root.transform.SetParent(parent, false);
+        Place(root.GetComponent<RectTransform>(), new Vector2(35, y + 15), new Vector2(370, 40));
+        GameObject track = Panel(root.transform, "Track", Surface);
+        Place(track.GetComponent<RectTransform>(), Vector2.zero, new Vector2(370, 8));
+        GameObject fillArea = new GameObject("FillArea", typeof(RectTransform));
+        fillArea.transform.SetParent(root.transform, false);
+        Stretch(fillArea.GetComponent<RectTransform>());
+        GameObject fill = Panel(fillArea.transform, "Fill", Accent);
+        RectTransform fillRect = fill.GetComponent<RectTransform>();
+        Stretch(fillRect); fillRect.sizeDelta = new Vector2(0, -32);
+        GameObject handleArea = new GameObject("HandleArea", typeof(RectTransform));
+        handleArea.transform.SetParent(root.transform, false); Stretch(handleArea.GetComponent<RectTransform>());
+        GameObject handle = Panel(handleArea.transform, "Handle", White);
+        Place(handle.GetComponent<RectTransform>(), Vector2.zero, new Vector2(18, 28));
+        Slider slider = root.GetComponent<Slider>(); slider.minValue = 0; slider.maxValue = 1;
+        slider.fillRect = fillRect; slider.handleRect = handle.GetComponent<RectTransform>(); slider.targetGraphic = handle.GetComponent<Image>();
+        string prefix = char.ToLowerInvariant(name[0]) + name.Substring(1);
+        Assign(ui, prefix + "Slider", slider); Assign(ui, prefix + "Value", value);
+    }
+
+    private static Button Button(Transform parent, string name, string label, Vector2 position, Vector2 size, UnityAction action, bool topLeft = false, bool primary = false)
+    {
+        GameObject root = Panel(parent, name, primary ? Accent : Surface);
+        Place(root.GetComponent<RectTransform>(), position, size, topLeft);
+        Button button = root.AddComponent<Button>();
+        ColorBlock colors = button.colors; colors.highlightedColor = new Color(0.75f, 1, 0.9f);
+        colors.selectedColor = new Color(0.75f, 1, 0.9f); colors.pressedColor = new Color(0.45f, 0.7f, 0.6f);
+        colors.disabledColor = new Color(0.4f, 0.45f, 0.45f, 0.5f); button.colors = colors;
+        Text(root.transform, "Label", label, Vector2.zero, size - new Vector2(16, 4), 23, primary ? Ink : White);
+        UnityEventTools.AddPersistentListener(button.onClick, action);
+        return button;
+    }
+
+    private static TextMeshProUGUI Text(Transform parent, string name, string value, Vector2 position, Vector2 size, float fontSize, Color color, bool topLeft = false)
+    {
+        GameObject root = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        root.transform.SetParent(parent, false); Place(root.GetComponent<RectTransform>(), position, size, topLeft);
+        TextMeshProUGUI text = root.GetComponent<TextMeshProUGUI>();
+        text.font = font; text.text = value; text.fontSize = fontSize; text.color = color;
+        text.alignment = topLeft ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.Center;
+        text.raycastTarget = false; text.enableWordWrapping = true;
+        return text;
+    }
+
+    private static GameObject Panel(Transform parent, string name, Color color)
+    {
+        GameObject root = new GameObject(name, typeof(RectTransform), typeof(Image));
+        root.transform.SetParent(parent, false); Stretch(root.GetComponent<RectTransform>());
+        Image image = root.GetComponent<Image>(); image.color = color; image.raycastTarget = color.a > 0;
+        return root;
+    }
+
+    private static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero; rect.offsetMax = Vector2.zero;
+    }
+
+    private static void Place(RectTransform rect, Vector2 position, Vector2 size, bool topLeft = false)
+    {
+        rect.anchorMin = rect.anchorMax = topLeft ? new Vector2(0, 1) : new Vector2(0.5f, 0.5f);
+        rect.pivot = topLeft ? new Vector2(0, 1) : new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size; rect.anchoredPosition = position;
+    }
+
+    private static void Assign(Object target, string property, Object value)
+    {
+        SerializedObject serialized = new SerializedObject(target);
+        serialized.FindProperty(property).objectReferenceValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+}

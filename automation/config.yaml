@@ -1,0 +1,91 @@
+version: 1
+
+project:
+  root: ".."
+  required_branch: "feature/ui"
+  plan_file: "PLAN.md"
+  progress_file: "PROGRESS.md"
+  tasks_directory: "tasks"
+  unity_version: "2022.3.62f3c1"
+  unity_executable: "/Applications/Unity/Hub/Editor/2022.3.62f3c1/Unity.app/Contents/MacOS/Unity"
+
+codex:
+  executable: "codex"
+  approval_policy: "never"
+  ephemeral: true
+  executor_sandbox: "workspace-write"
+  reviewer_sandbox: "read-only"
+
+models:
+  planner:
+    enabled: false
+    model: "gpt-6.1-sol"
+    reasoning_effort: "medium"
+  executor_default:
+    model: "gpt-5.6-sol"
+    reasoning_effort: "low"
+  executor_complex:
+    model: "gpt-5.6-sol"
+    reasoning_effort: "medium"
+  executor_retry_efforts:
+    - "medium"
+    - "high"
+  reviewer_default:
+    model: "gpt-5.6-sol"
+    reasoning_effort: "low"
+  reviewer_complex:
+    model: "gpt-5.6-sol"
+    reasoning_effort: "medium"
+
+limits:
+  default_max_batches_per_run: 3
+  max_fix_retries: 2
+  executor_timeout_seconds: 3600
+  reviewer_timeout_seconds: 1200
+  unity_timeout_seconds: 1800
+  stop_grace_seconds: 15
+  max_total_tokens: 300000
+  max_batch_tokens: 120000
+  minimum_remaining_tokens_to_start_session: 25000
+  max_cost_usd: null
+
+paths:
+  logs: "automation/logs"
+  runtime: "automation/runtime"
+  worktree_parent: "../Shattered-Caverns-automation-worktrees"
+
+git:
+  integration_branch_prefix: "codex/automation"
+  batch_branch_prefix: "codex/batch"
+  commit_completed_batches: true
+  push: false
+  merge_main: false
+  cleanup_worktrees: false
+
+validation:
+  run_unity_compile: true
+  require_clean_source_worktree: true
+  require_tracked_automation_files: true
+  disallowed_changed_paths:
+    - ".git/"
+    - "Library/"
+    - "Temp/"
+    - "Logs/"
+    - "Build/"
+    - "Builds/"
+
+batches:
+  "01": {depends_on: [], complexity: normal, manual_review_required: true}
+  "02": {depends_on: ["01"], complexity: normal, manual_review_required: true}
+  "03": {depends_on: ["01"], complexity: normal, manual_review_required: true}
+  "04": {depends_on: ["03"], complexity: normal, manual_review_required: true}
+  "05": {depends_on: ["01"], complexity: normal, manual_review_required: true}
+  "06": {depends_on: ["01"], complexity: normal, manual_review_required: true}
+  "07": {depends_on: ["01", "02", "03", "04", "05", "06"], complexity: complex, manual_review_required: true}
+  "08": {depends_on: ["02", "07"], complexity: complex, manual_review_required: true}
+  "09": {depends_on: ["08"], complexity: complex, manual_review_required: true}
+  "10": {depends_on: ["01", "03", "05", "07"], complexity: normal, manual_review_required: true}
+  "11": {depends_on: ["08", "10"], complexity: complex, manual_review_required: true}
+  "12": {depends_on: ["03", "07"], complexity: complex, manual_review_required: true}
+  "13": {depends_on: ["07", "08", "09", "10", "11", "12"], complexity: complex, manual_review_required: true}
+  "14": {depends_on: ["13"], complexity: complex, manual_review_required: true}

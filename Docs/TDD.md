@@ -271,3 +271,84 @@ Chunk
 ### 9.资源加载和管理
 
 ### 10.测试与调试方式
+
+## 七、全局流程与 UI
+
+### 1.资源与启动
+
+- `Assets/Scenes/MainMenu.unity` 为构建列表首场景，原玩法场景仍为 `Assets/Scenes/URP2DSceneTemplate.unity`。
+- `Assets/Resources/GameApplication.prefab` 包含 `GameFlowController`、两个音频播放器、EventSystem 与 uGUI Canvas。
+- `GameFlowController` 在场景加载前实例化该 Prefab，并使用 `DontDestroyOnLoad` 保留；不需要在每个关卡重复放置管理器。
+- 同一 Prefab 内的 UI、音频与流程引用均序列化绑定。关卡中的玩家与交互组件在场景加载后查找。
+- UI 采用 uGUI 和 TextMeshPro。Canvas 使用 1600×900 参考分辨率与 Scale With Screen Size。
+- 主菜单背景使用 `Assets/Art/Backgrounds/MainMenuBackground.png`，按 Sprite (2D and UI) 导入，关闭 Mipmap 与纹理压缩，使用 Bilinear 过滤和 Clamp 包裹。
+- `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和全屏遮罩均关闭 Raycast Target，不阻挡菜单按钮。
+- 主菜单标题使用保留原图比例的透明 Sprite `Assets/Art/UI/MainMenuTitle.png`。
+- 主菜单标题与开始、继续、选关居中排列，声音设置和退出分别锚定左下与右下。中央按钮共用切角木牌 Sprite，悬停及键盘选中使用带暖灯高光和碎片标记的 Sprite，按钮文字以实际字形的中线垂直居中，禁用继续时压暗，角落按钮使用文字颜色反馈，原有点击事件保持序列化绑定。
+- 选关由 `LevelSelectMap` 在 `LevelSelectPanel` 中生成 16×16 格的 uGUI 地图。地图运动使用不受时间缩放影响的 UI 坐标，与关卡物理独立。
+- 关卡门按配置顺序布置，每页最多 12 扇门，超过时使用 Page Up / Page Down 切换地图。门的颜色和进关权限读取现有存档，进门复用 `GameFlowController.LoadLevel`。
+- 设置界面使用三个独立音量卡片展示标签、用途说明、滑轨与百分比；打开页面时以 `SetValueWithoutNotify` 同步存档值并默认聚焦总音量，从暂停状态进入和返回时保持全局暂停。
+- 暂停界面使用半透明全屏遮罩和居中内容卡片，继续操作为默认焦点，重新开始使用警示层级；界面只调用 `GameFlowController` 的暂停、恢复、重开和返回接口，不直接修改时间缩放。
+- 通关与失败继续共用 `ResultPanel`：控制器根据流程状态切换标题、说明和暖金/暖红强调色；有下一关时默认聚焦下一关，否则默认聚焦重试。
+- HUD 使用左上状态卡、右上暂停入口和底部操作提示条；普通、放置与拿下状态使用不同文字和强调色，仍以 0.15 秒间隔只读 `LevelManager` 与 `PlayerChunkInteraction`。
+- 主菜单、选关、设置、暂停和结果面板带 0.12 秒 unscaled-time 淡入；淡入不禁用交互，场景加载期间的输入屏蔽仍由 Loading 状态和 Transition CanvasGroup 负责。
+- 全局按钮统一 Hover、Selected、Pressed 和 Disabled 色彩反馈；Canvas 按 1600×900 高度适配，已覆盖 4:3、16:9、16:10 和约 21:9 比例。
+- 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
+- `CavernsPipeline.asset` 和 `CavernsRenderer2D.asset` 为缺失管线引用的替代配置，使用 URP 2D Renderer；没有调整 Layer、Tag 或物理矩阵。
+
+### 2.关卡配置
+
+- `Assets/Settings/GameConfiguration.asset` 保存菜单场景路径和有序关卡列表。
+- 每项包含稳定且唯一的 `id`、显示名称、完整场景路径与音乐资源。
+- ID 用于存档，后续不要随意更名；关卡顺序决定下一关与解锁顺序。
+- 新增关卡时同时加入此配置与 Build Settings，并保留原场景 GUID。
+- 当前仅配置真实存在的测试关卡，没有占位的虚构关卡。
+
+### 3.流程入口
+
+- `GameFlowController.Instance.CompleteLevel()`：仅在 Playing 状态记录通关，解锁下一关并显示结束界面；重复调用不重复记录。
+- `FailLevel()`：仅在 Playing 状态进入失败界面，不写入通关记录。
+- `RestartLevel()`：异步重新加载当前关卡，重置场景运行状态。
+- `LoadLevel(string levelId)`：只加载已解锁且已加入构建列表的关卡。
+- `LoadNextLevel()`、`ReturnToMainMenu()`、`StartGame()`、`ContinueGame()` 提供流程入口。
+- `LevelFlowEvents` 可挂到出口或机关对象，通过 UnityEvent 绑定其公开通关、失败、重开方法。该组件本身不判断碰撞或通关条件。
+- `LevelFlowTrigger` 可挂到带 2D Trigger Collider 的出口或伤害区域，使用 Inspector 选择通关或失败；它只响应自身或所属刚体带 `Player` Tag 的碰撞体，默认只触发一次。
+- 场景切换时取消当前区块预览、禁用移动输入，使用不受 Time.timeScale 影响的淡入淡出，加载期间屏蔽重复加载请求。
+
+### 4.暂停与输入
+
+- 全局状态包含 MainMenu、Playing、Paused、Completed、Failed 和 Loading。
+- 菜单暂停保留区块交互状态；继续时根据交互状态决定恢复时间还是保持零时间。
+- `PlayerChunkInteraction.Update` 在全局流程阻止输入时不读取操作键。
+- 新增 `CancelCurrentInteraction()` 接口，在通关、失败和切换场景前复用原有取消逻辑恢复预览与摄像机。
+- HUD 只读现有 `LevelManager` 与 `PlayerChunkInteraction`，不持有第二份背包／区块数据。
+
+### 5.本地记录与音频
+
+- `GameSaveStore` 使用独立的 PlayerPrefs 键 `ShatteredCaverns.Progress.v1` 保存版本化 JSON。
+- 保存稳定关卡 ID 列表、最近关卡和三个音量值；损坏 JSON 或不支持的版本回退为初始数据。
+- 读取存档时删除配置中已不存在或重复的关卡 ID，已完成关卡保持解锁，无效最近关卡被清空，修正结果会写回 PlayerPrefs。
+- 返回设置、切换场景、通关、应用暂停与退出时写盘。
+- 不记录玩家位置、碎片实例、区块变换或音乐播放时间；重开使用场景初始状态。
+- `GameAudioPlayer` 管理独立的 MusicPlayer 与 SoundPlayer，实际音量为主音量乘对应通道音量。
+- 配置中的菜单音乐、各关卡音乐、按钮／通关／失败音效可在 Inspector 指定；当前没有正式音频素材，允许为空。
+- `PlayMusic(AudioClip)` 与 `PlaySound(AudioClip)` 可供玩法对象调用；相同背景音乐不会因为重复请求而从头播放。
+- `PlayMusic(AudioClip, float fadeDuration)` 支持先淡出旧音乐、再淡入新音乐；时长为每一段淡变的秒数，0 表示立即切换。重复请求正在切换到的音乐不会重置过渡；新请求取消旧过渡。
+- `StopMusic(float fadeDuration = 0f)` 停止并清空音乐，传入空音乐具有相同效果。`PauseMusic()`／`ResumeMusic()` 保留并恢复播放位置，`IsMusicPaused` 表示接口暂停状态。
+- 淡变使用不受 `Time.timeScale` 影响的时间，音量设置会即时乘入淡变增益；手动暂停音乐时淡变也暂停。游戏暂停与区块操作默认保持背景音乐播放，不自动调用音乐暂停接口。
+- 场景切换通过 `GameConfiguration.MusicFadeDuration` 设置淡变时长，默认每段 0.5 秒；相同音乐跨场景保持播放。接口入口为 `GameFlowController.Instance.AudioPlayer`，应在全局流程初始化后调用。
+- 接入素材时，在 `Assets/Settings/GameConfiguration.asset` 的 `Menu Music`、各关卡 `Music` 和对应音效字段拖入 AudioClip；`Music Fade Duration` 调整切换时长。音乐循环由播放器保证；空引用不会阻止流程运行。音量沿用现有设置与存档。
+
+### 6.Editor 工具与验证
+
+- `Tools > Shattered Caverns > Build Game Interface` 使用 Unity API 生成初始资源，已有 GameApplication 时拒绝覆盖；正常开发直接编辑现有 Prefab。
+- `Tools > Shattered Caverns > Apply Main Menu Redesign`（macOS `Cmd+Shift+M`）通过 Unity API 配置背景导入并将主菜单视觉结构应用到现有 Prefab。
+- `Tools > Shattered Caverns > Apply Settings Redesign` 通过 Unity API 将声音设置的卡片、滑轨、手柄、百分比和导航样式应用到现有 Prefab，不修改音频与存档架构。
+- `Tools > Shattered Caverns > Apply Pause Redesign` 通过 Unity API 将遮罩、中央卡片、按钮层级与提示信息应用到现有 Prefab，不修改暂停职责边界或区块交互代码。
+- `Tools > Shattered Caverns > Apply Result Redesign` 通过 Unity API 将结果遮罩、中央卡片、状态强调条和按钮层级应用到共用结果面板。
+- `Tools > Shattered Caverns > Apply HUD Redesign` 通过 Unity API 将状态卡、暂停入口和底部提示条应用到现有 HUD，不创建第二份玩法状态。
+- `Tools > Shattered Caverns > Apply Interface Polish` 为五个主要面板配置 CanvasGroup，并统一按钮状态色和 CanvasScaler 适配设置。
+- `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置与 Build Settings，再在 Play Mode 中验证主菜单、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
+- 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
+- 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
+- 当前 macOS Editor 流程验证通过 36 项检查，并检查所有项目 Prefab 无 Missing Script；尚未验证 Windows 构建或正式音频听感。
