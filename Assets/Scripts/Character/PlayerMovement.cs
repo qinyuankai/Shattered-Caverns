@@ -28,7 +28,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float jumpVelocity = 15f;
     [SerializeField] private bool isHorizontalInputInverted;
     [SerializeField] private bool isFrozen;
-    [SerializeField, Min(0f)] private float verticalFacingSpeedThreshold = 18.5f;
+    [SerializeField, Min(0f)] private float verticalFacingSpeedThreshold = 0.01f;
     [SerializeField] private PlayerFacingDirection facingDirection = PlayerFacingDirection.Right;
     [SerializeField] private Vector2 groundCheckOffset = new Vector2(0f, -0.55f);
     [SerializeField] private Vector2 groundCheckSize = new Vector2(0.8f, 0.1f);
@@ -377,9 +377,10 @@ public class PlayerMovement : MonoBehaviour
                 : PlayerFacingDirection.Left;
         }
 
-        if (Mathf.Abs(playerRigidbody.velocity.y) > verticalFacingSpeedThreshold)
+        float verticalSpeed = playerRigidbody.velocity.y;
+        if (Mathf.Abs(verticalSpeed) > verticalFacingSpeedThreshold)
         {
-            facingDirection = playerRigidbody.velocity.y > 0f
+            facingDirection = verticalSpeed > 0f
                 ? PlayerFacingDirection.Up
                 : PlayerFacingDirection.Down;
             return;

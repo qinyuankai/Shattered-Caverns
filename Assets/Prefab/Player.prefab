@@ -284,7 +284,7 @@ MonoBehaviour:
   jumpVelocity: 15
   isHorizontalInputInverted: 0
   isFrozen: 0
-  verticalFacingSpeedThreshold: 18.5
+  verticalFacingSpeedThreshold: 0.01
   facingDirection: 1
   groundCheckOffset: {x: 0, y: -0.55}
   groundCheckSize: {x: 0.8, y: 0.1}

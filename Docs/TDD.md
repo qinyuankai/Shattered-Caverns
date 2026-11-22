@@ -95,7 +95,7 @@ Layer 只用于物理碰撞矩阵、射线检测和其他查询筛选，不用�
 - 当前状态通过 `CurrentState` 属性提供给后续动画系统读取。
 - 玩家朝向由 `PlayerFacingDirection` 表示，当前包括 `Left`、`Right`、`Up` 和 `Down`。
 - 当存在有效水平输入时，玩家朝向根据实际生效的水平输入更新；左右控制颠倒时，朝向也使用颠倒后的实际输入判断。
-- 当玩家竖直速度绝对值超过 `verticalFacingSpeedThreshold` 时，朝向切换为 `Up` 或 `Down`；否则恢复为最近一次水平朝向。默认阈值为 `18.5`，高于普通起跳初速度。
+- 当玩家竖直速度绝对值超过 `verticalFacingSpeedThreshold` 时，朝向切换为 `Up` 或 `Down`。竖直速度处于容差内时，沿用最近一次有效的左右朝向。脚本和玩家预制体的默认阈值均为 `0.01`。
 - 左右控制颠倒状态由 `isHorizontalInputInverted` 保存，并通过 `SetHorizontalInputInverted` 提供运行时修改接口。
 - `ConfusionMushroom` 使用 `AutoTrigger` 图层上的 1×1 `BoxCollider2D` Trigger，忽略玩家外围 Trigger。通过玩家实体碰撞体所属的刚体取得 `PlayerMovement`，调用 `SetHorizontalInputInverted(true)` 后停用蘑菇。预制体作为所属区块的子对象摆放。
 - 冻结由可序列化的 `isFrozen` 保存，可在 Inspector 中切换或由 `SetFrozen(bool)` 修改。`IsFrozen` 提供只读查询，与区块操作使用的输入开关独立。
@@ -247,7 +247,7 @@ Chunk
 - 玩家根对象挂载 `PlayerChunkInteraction`，负责区块拿下、放置和冻结时的原地旋转。
 - `PlayerChunkInteraction` 通过 Inspector 显式引用玩家身上的 `PlayerMovement` 和 `PlayerChunkTracker`，场景级 `LevelManager` 在运行时自动查找。
 - `PlayerChunkInteraction` 在操作状态变化时通知 `GameFlowController`，由全局流程统一设置物理时间和玩家移动输入。
-- 玩家未冻结时按下 `F`，先检查玩家是否处于区块内，并根据当前朝向计算目标区块位置。
+- 玩家未冻结时按下 `F`，先检查玩家是否处于区块内，再根据 `PlayerMovement.FacingDirection` 计算相邻区块目标。
 - 遮挡检测从玩家中心划线到当前区块对应边界，只将属于当前区块的非 Trigger `Solid` 碰撞体计为阻挡。
 - 相邻目标中心的距离根据当前区块 `Boundary` 的实际尺寸和世界方向计算，固定使用的区块尺寸不是判定依据。
 - `LevelManager.FindPlacedChunkAt` 按目标中心查询已放置区块。可移动区块进入拿下模式，固定区块阻止操作，空位可以尝试放置。
