@@ -110,7 +110,7 @@ internal sealed class LevelSelectMap
             int index = page * DoorsPerPage + slot;
             doors[slot].gameObject.SetActive(index < count);
             if (index >= count) continue;
-            numbers[slot].text = $"{index + 1:00}";
+            numbers[slot].text = $"{index:00}";
             StyleDoor(slot, false);
         }
         ResetExplorer();
@@ -169,7 +169,7 @@ internal sealed class LevelSelectMap
         GameLevelDefinition level = flow.Configuration.Levels[index];
         string action = !flow.SaveStore.IsUnlocked(level.id) ? "未解锁"
             : flow.SaveStore.IsCompleted(level.id) ? "已通关 · 按 F 重玩" : "按 F 进入";
-        status.text = $"{index + 1:00}  {level.displayName}    {action}";
+        status.text = $"{index:00}  {level.displayName}    {action}";
     }
 
     private void StyleDoor(int slot, bool nearby)

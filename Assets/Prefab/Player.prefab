@@ -159,7 +159,7 @@ BoxCollider2D:
     adaptiveTiling: 0
   m_AutoTiling: 0
   serializedVersion: 2
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.95, y: 0.95}
   m_EdgeRadius: 0.01
 --- !u!1 &6769446548641866583
 GameObject:
@@ -242,6 +242,7 @@ GameObject:
   - component: {fileID: 6672198822798474703}
   - component: {fileID: 8472190318771644040}
   - component: {fileID: 5036090318771644040}
+  - component: {fileID: 8259463719824405691}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -279,16 +280,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6b4cca2d6cc50764aa13faaa845c90f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
-  jumpVelocity: 8
+  moveSpeed: 4.2
+  jumpVelocity: 15
   isHorizontalInputInverted: 0
-  verticalFacingSpeedThreshold: 0
+  isFrozen: 0
+  verticalFacingSpeedThreshold: 18.5
   facingDirection: 1
   groundCheckOffset: {x: 0, y: -0.55}
   groundCheckSize: {x: 0.8, y: 0.1}
   groundLayer:
     serializedVersion: 2
     m_Bits: 256
+  bodyCollider: {fileID: 6168568198300609315}
+  inventory: {fileID: 2479189628803634129}
+  updraftLayers:
+    serializedVersion: 2
+    m_Bits: 1024
+  dandelionAirSpeed: 2
+  dandelionDescentSpeed: 1
 --- !u!114 &2479189628803634129
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -350,7 +359,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDrag: 0
   m_AngularDrag: 0.05
-  m_GravityScale: 1
+  m_GravityScale: 4.5
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -362,3 +371,22 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
+--- !u!114 &8259463719824405691
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7767663760128732614}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1bc90a0bdb8b444dbca08e938f6e6a9b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerMovement: {fileID: 4138345779016227513}
+  chunkTracker: {fileID: 6672198822798474703}
+  bodyCollider: {fileID: 6168568198300609315}
+  solidLayers:
+    serializedVersion: 2
+    m_Bits: 256
+  freezeSeconds: 0.95

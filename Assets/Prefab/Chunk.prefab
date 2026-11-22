@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 5859802153978539198}
   - component: {fileID: 2369431803589334719}
   - component: {fileID: 8049438956682016707}
+  - component: {fileID: 6298161000000000047}
   m_Layer: 7
   m_Name: Chunk
   m_TagString: Chunk
@@ -76,9 +77,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chunkId: 0
-  isMovable: 1
   boundary: {fileID: 8376268777373151827}
   backgroundRenderer: {fileID: 5741327864521079417}
+  weather: {fileID: 6298161000000000047}
+--- !u!114 &6298161000000000047
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 356539654248096442}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00ca051bcd444fa099246e9af86bb799, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  hasSunlight: 1
+  hasRain: 0
+  canFreezePlayer: 0
 --- !u!1 &1382851194126515269
 GameObject:
   m_ObjectHideFlags: 0

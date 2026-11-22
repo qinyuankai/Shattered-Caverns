@@ -42,13 +42,14 @@ public class LevelManager : MonoBehaviour
     public IReadOnlyList<LevelChunkConfiguration> ChunkConfigurations => chunkConfigurations;
     public IReadOnlyList<ChunkController> AvailableChunks => availableChunks;
 
-    private readonly Dictionary<int, HashSet<int>> collectedFragments =
-        new Dictionary<int, HashSet<int>>();
+    private readonly Dictionary<ChunkController, HashSet<int>> collectedFragments =
+        new Dictionary<ChunkController, HashSet<int>>();
 
     private void Awake()
     {
         ApplyChunkConfigurations();
         ApplyPlacementStates();
+        ValidateAvailableChunks();
         InitializeFragmentRecords();
     }
 
@@ -69,7 +70,6 @@ public class LevelManager : MonoBehaviour
             }
 
             configuration.chunk.AssignChunkId(chunkId);
-            configuration.chunk.AssignMovableState(configuration.isMovable);
             configuration.chunk.gameObject.name = $"Chunk_{chunkId:000}";
             chunkId++;
         }
@@ -94,6 +94,29 @@ public class LevelManager : MonoBehaviour
     {
         LevelChunkConfiguration configuration = FindConfiguration(chunkId);
         return configuration != null && configuration.IsPlaced;
+    }
+
+    internal bool IsChunkPlaced(ChunkController chunk)
+    {
+        return chunk != null && FindConfiguration(chunk)?.IsPlaced == true;
+    }
+
+    private void ValidateAvailableChunks()
+    {
+        var uniqueChunks = new HashSet<ChunkController>();
+        availableChunks.RemoveAll(chunk =>
+        {
+            LevelChunkConfiguration configuration = chunk == null ? null : FindConfiguration(chunk);
+            bool isValid = configuration != null && configuration.isMovable
+                && !configuration.IsPlaced && uniqueChunks.Add(chunk);
+
+            if (!isValid)
+            {
+                Debug.LogWarning($"Invalid or duplicate Available Chunks entry: {chunk}.", this);
+            }
+
+            return !isValid;
+        });
     }
 
     public bool TrySetChunkPlaced(int chunkId, bool placed)
@@ -140,88 +163,59 @@ public class LevelManager : MonoBehaviour
     {
         LevelChunkConfiguration configuration = FindConfiguration(chunkId);
         return configuration != null
+            && configuration.isMovable
             && !configuration.IsPlaced
             && availableChunks.Contains(configuration.chunk);
     }
 
-    public bool IsChunkPositionOccupiedAt(Vector2 worldPosition, float tolerance)
+    public bool IsChunkUnlocked(int chunkId)
     {
-        float squaredTolerance = tolerance * tolerance;
-
-        foreach (LevelChunkConfiguration configuration in chunkConfigurations)
-        {
-            if (configuration == null
-                || configuration.chunk == null
-                || !configuration.IsPlaced)
-            {
-                continue;
-            }
-
-            Vector2 offset = configuration.chunk.WorldCenter - worldPosition;
-
-            if (offset.sqrMagnitude <= squaredTolerance)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public bool TryGetPlacedMovableChunkAt(
-        Vector2 worldPosition,
-        float tolerance,
-        out ChunkController chunk)
-    {
-        float squaredTolerance = tolerance * tolerance;
-
-        foreach (LevelChunkConfiguration configuration in chunkConfigurations)
-        {
-            if (configuration == null
-                || configuration.chunk == null
-                || !configuration.isMovable
-                || !configuration.IsPlaced)
-            {
-                continue;
-            }
-
-            Vector2 offset = configuration.chunk.WorldCenter - worldPosition;
-
-            if (offset.sqrMagnitude <= squaredTolerance)
-            {
-                chunk = configuration.chunk;
-                return true;
-            }
-        }
-
-        chunk = null;
-        return false;
-    }
-
-    public bool TryCollectFragment(int chunkId, int fragmentId)
-    {
-        if (!collectedFragments.TryGetValue(chunkId, out HashSet<int> fragments))
-        {
-            return false;
-        }
-
         LevelChunkConfiguration configuration = FindConfiguration(chunkId);
+        return configuration != null && IsChunkUnlocked(configuration);
+    }
 
-        if (configuration == null
-            || configuration.IsPlaced
-            || availableChunks.Contains(configuration.chunk))
+    internal LevelChunkConfiguration FindPlacedChunkAt(Vector2 worldPosition, float tolerance)
+    {
+        float squaredTolerance = tolerance * tolerance;
+
+        foreach (LevelChunkConfiguration configuration in chunkConfigurations)
+        {
+            if (configuration == null
+                || configuration.chunk == null
+                || !configuration.IsPlaced)
+            {
+                continue;
+            }
+
+            Vector2 offset = configuration.chunk.WorldCenter - worldPosition;
+
+            if (offset.sqrMagnitude <= squaredTolerance)
+            {
+                return configuration;
+            }
+        }
+
+        return null;
+    }
+
+    internal bool TryCollectFragment(ChunkController chunk, int fragmentId)
+    {
+        return chunk != null && TryCollectFragment(FindConfiguration(chunk), fragmentId);
+    }
+
+    private bool TryCollectFragment(LevelChunkConfiguration configuration, int fragmentId)
+    {
+        if (configuration == null || IsChunkUnlocked(configuration)
+            || !collectedFragments.TryGetValue(configuration.chunk, out HashSet<int> fragments))
         {
             return false;
         }
 
         bool collected = fragments.Add(fragmentId);
 
-        if (collected && IsFragmentRequirementComplete(chunkId, fragments.Count))
+        if (collected && fragments.Count >= configuration.requiredFragmentCount)
         {
-            if (!availableChunks.Contains(configuration.chunk))
-            {
-                availableChunks.Add(configuration.chunk);
-            }
+            availableChunks.Add(configuration.chunk);
         }
 
         if (collected)
@@ -235,28 +229,29 @@ public class LevelManager : MonoBehaviour
     public bool HasFragment(int chunkId, int fragmentId)
     {
         LevelChunkConfiguration configuration = FindConfiguration(chunkId);
-
-        if (configuration != null
-            && (configuration.IsPlaced || availableChunks.Contains(configuration.chunk)))
-        {
-            return true;
-        }
-
-        return collectedFragments.TryGetValue(chunkId, out HashSet<int> fragments)
+        return configuration != null
+            && collectedFragments.TryGetValue(configuration.chunk, out HashSet<int> fragments)
             && fragments.Contains(fragmentId);
     }
 
     public int GetCollectedFragmentCount(int chunkId)
     {
-        LevelChunkConfiguration configuration = FindConfiguration(chunkId);
+        return GetCollectedFragmentCount(FindConfiguration(chunkId));
+    }
 
-        if (configuration != null
-            && (configuration.IsPlaced || availableChunks.Contains(configuration.chunk)))
+    private int GetCollectedFragmentCount(LevelChunkConfiguration configuration)
+    {
+        if (configuration == null)
+        {
+            return 0;
+        }
+
+        if (IsChunkUnlocked(configuration))
         {
             return configuration.requiredFragmentCount;
         }
 
-        return collectedFragments.TryGetValue(chunkId, out HashSet<int> fragments)
+        return collectedFragments.TryGetValue(configuration.chunk, out HashSet<int> fragments)
             ? fragments.Count
             : 0;
     }
@@ -274,28 +269,24 @@ public class LevelManager : MonoBehaviour
                 continue;
             }
 
-            int chunkId = configuration.chunk.ChunkId;
-
-            if (configuration.IsPlaced)
+            if (IsChunkUnlocked(configuration))
             {
                 continue;
             }
 
             if (configuration.requiredFragmentCount >= 1
-                && !collectedFragments.ContainsKey(chunkId))
+                && !collectedFragments.ContainsKey(configuration.chunk))
             {
-                collectedFragments.Add(chunkId, new HashSet<int>());
+                collectedFragments.Add(configuration.chunk, new HashSet<int>());
             }
         }
 
         RefreshDebugView();
     }
 
-    private bool IsFragmentRequirementComplete(int chunkId, int collectedCount)
+    private bool IsChunkUnlocked(LevelChunkConfiguration configuration)
     {
-        LevelChunkConfiguration configuration = FindConfiguration(chunkId);
-        return configuration != null
-            && collectedCount >= configuration.requiredFragmentCount;
+        return configuration.IsPlaced || availableChunks.Contains(configuration.chunk);
     }
 
     private LevelChunkConfiguration FindConfiguration(int chunkId)
@@ -330,26 +321,31 @@ public class LevelManager : MonoBehaviour
     {
         debugCollectedFragments.Clear();
 
-        foreach (KeyValuePair<int, HashSet<int>> entry in collectedFragments)
+        foreach (KeyValuePair<ChunkController, HashSet<int>> entry in collectedFragments)
         {
+            if (entry.Key == null)
+            {
+                continue;
+            }
+
+            LevelChunkConfiguration configuration = FindConfiguration(entry.Key);
+            if (configuration == null)
+            {
+                continue;
+            }
+
             CollectedFragmentDebugRecord record = new CollectedFragmentDebugRecord
             {
-                chunkId = entry.Key,
+                chunkId = entry.Key.ChunkId,
                 fragmentIds = new List<int>(entry.Value),
-                collectedFragmentCount = GetCollectedFragmentCount(entry.Key),
-                requiredFragmentCount = GetRequiredFragmentCount(entry.Key),
-                isAvailable = IsChunkAvailable(entry.Key),
-                isPlaced = IsChunkPlaced(entry.Key)
+                collectedFragmentCount = GetCollectedFragmentCount(configuration),
+                requiredFragmentCount = configuration.requiredFragmentCount,
+                isAvailable = IsChunkAvailable(entry.Key.ChunkId),
+                isPlaced = configuration.IsPlaced
             };
 
             record.fragmentIds.Sort();
             debugCollectedFragments.Add(record);
         }
-    }
-
-    private int GetRequiredFragmentCount(int chunkId)
-    {
-        LevelChunkConfiguration configuration = FindConfiguration(chunkId);
-        return configuration == null ? 0 : configuration.requiredFragmentCount;
     }
 }

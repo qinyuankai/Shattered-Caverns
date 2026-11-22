@@ -52,7 +52,7 @@ public static class GameInterfaceBuilder
         SerializedProperty first = levels.GetArrayElementAtIndex(0);
         first.FindPropertyRelative("id").stringValue = "cavern-01";
         first.FindPropertyRelative("displayName").stringValue = "初探洞窟";
-        first.FindPropertyRelative("scenePath").stringValue = "Assets/Scenes/URP2DSceneTemplate.unity";
+        first.FindPropertyRelative("scenePath").stringValue = "Assets/Scenes/Level0.unity";
         config.ApplyModifiedPropertiesWithoutUndo();
         BuildApplication(configuration);
         Scene menu = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

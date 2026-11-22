@@ -1,16 +1,20 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public enum PlayerChunkInteractionState
 {
     Normal,
     Removing,
-    Placing
+    Placing,
+    Rotating
 }
 
 public class PlayerChunkInteraction : MonoBehaviour
 {
     private const string SolidLayerName = "Solid";
     private const float PositionTolerance = 0.05f;
+    private const float QuarterTurnDegrees = 90f;
 
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerChunkTracker playerChunkTracker;
@@ -23,21 +27,21 @@ public class PlayerChunkInteraction : MonoBehaviour
 
     public PlayerChunkInteractionState CurrentState => currentState;
     public ChunkController SelectedChunk => selectedChunk;
+    internal bool IsPlayerFrozen => playerMovement != null && playerMovement.IsFrozen;
+    internal event Action InteractionStateChanged;
 
     private LevelManager levelManager;
     private int solidLayerMask;
-    private float previousTimeScale;
-    private Vector2 operationDirection;
+    private ChunkController placementSourceChunk;
+    private Vector2 placementTargetCenter;
     private Vector3 originalPosition;
     private Quaternion originalRotation;
     private Vector3 originalScale;
     private bool originalActiveState;
-    private Camera mainCamera;
-    private CameraController cameraController;
-    private Vector3 originalCameraPosition;
-    private float originalCameraOrthographicSize;
-    private bool originalCameraControllerEnabled;
-    private bool cameraStateSaved;
+    private Vector3 originalPlayerPosition;
+    private Vector3 rotationPlayerLocalPosition;
+    private CameraController interactionCamera;
+    private readonly List<RaycastHit2D> boundaryHits = new List<RaycastHit2D>();
 
     private void Awake()
     {
@@ -61,9 +65,15 @@ public class PlayerChunkInteraction : MonoBehaviour
         }
     }
 
+    private void OnDisable()
+    {
+        CancelCurrentInteraction();
+    }
+
     private void Update()
     {
-        if (GameFlowController.Instance != null && GameFlowController.Instance.BlocksGameplayInput)
+        GameFlowController flow = GameFlowController.Instance;
+        if (flow == null || flow.BlocksGameplayInput)
         {
             return;
         }
@@ -75,6 +85,18 @@ public class PlayerChunkInteraction : MonoBehaviour
                 TryEnterInteractionState();
             }
 
+            return;
+        }
+
+        bool isRotating = currentState == PlayerChunkInteractionState.Rotating;
+        bool isPlacing = currentState == PlayerChunkInteractionState.Placing;
+
+        if (IsPlayerFrozen != isRotating
+            || (isRotating && (selectedChunk == null || !selectedChunk.isActiveAndEnabled))
+            || (isPlacing && (levelManager == null || placementSourceChunk == null || !placementSourceChunk.isActiveAndEnabled
+                || !levelManager.IsChunkPlaced(placementSourceChunk))))
+        {
+            CancelInteraction();
             return;
         }
 
@@ -90,17 +112,36 @@ public class PlayerChunkInteraction : MonoBehaviour
             return;
         }
 
-        if (currentState == PlayerChunkInteractionState.Placing)
+        if (!isRotating && !isPlacing)
         {
-            if (Input.GetKeyDown(KeyCode.Q))
+            return;
+        }
+
+        float rotationDelta = 0f;
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            rotationDelta = QuarterTurnDegrees;
+        }
+        else if (Input.GetKeyDown(KeyCode.E))
+        {
+            rotationDelta = -QuarterTurnDegrees;
+        }
+
+        if (rotationDelta != 0f)
+        {
+            if (isRotating)
             {
-                placementRotation = Mathf.Repeat(placementRotation + 90f, 360f);
+                RotateCurrentChunk(rotationDelta);
+            }
+            else
+            {
+                placementRotation = Mathf.Repeat(placementRotation + rotationDelta, 360f);
                 ApplyPlacementPreview();
             }
-            else if (Input.GetKeyDown(KeyCode.E))
-            {
-                SelectNextAvailableChunk();
-            }
+        }
+        else if (isPlacing && Input.GetKeyDown(KeyCode.R))
+        {
+            SelectNextAvailableChunk();
         }
     }
 
@@ -108,36 +149,49 @@ public class PlayerChunkInteraction : MonoBehaviour
     {
         if (playerMovement == null
             || playerChunkTracker == null
-            || levelManager == null
-            || playerChunkTracker.CurrentChunk == null)
+            || levelManager == null)
         {
             return;
         }
 
-        operationDirection = GetFacingDirection();
-
-        if (!HasClearPathToBoundary(operationDirection))
+        ChunkController sourceChunk = playerChunkTracker.CurrentChunk;
+        if (sourceChunk == null || !sourceChunk.isActiveAndEnabled || !levelManager.IsChunkPlaced(sourceChunk))
         {
             return;
         }
 
-        Vector2 targetCenter = GetTargetCenter();
-
-        if (levelManager.TryGetPlacedMovableChunkAt(
-                targetCenter,
-                PositionTolerance,
-                out ChunkController removableChunk))
+        if (IsPlayerFrozen)
         {
-            selectedChunk = removableChunk;
+            BeginRotation(sourceChunk);
+            return;
+        }
+
+        Vector2 direction = GetFacingDirection();
+
+        if (!HasClearPathToBoundary(sourceChunk, direction))
+        {
+            return;
+        }
+
+        Vector2 sourceCenter = sourceChunk.WorldCenter;
+        Vector2 targetCenter = sourceCenter + direction * sourceChunk.GetWorldSizeAlongDirection(direction);
+
+        LevelChunkConfiguration target = levelManager.FindPlacedChunkAt(targetCenter, PositionTolerance);
+        if (target != null)
+        {
+            if (!target.isMovable)
+            {
+                return;
+            }
+
+            selectedChunk = target.chunk;
             selectedChunk.SetBackgroundColor(GetInteractionColor(Color.red));
-            currentState = PlayerChunkInteractionState.Removing;
-            FocusCameraForInteraction(targetCenter);
-            PauseTime();
+            FocusCameraForInteraction(sourceCenter, targetCenter);
+            SetInteractionState(PlayerChunkInteractionState.Removing);
             return;
         }
 
-        if (levelManager.IsChunkPositionOccupiedAt(targetCenter, PositionTolerance)
-            || levelManager.AvailableChunks.Count == 0)
+        if (levelManager.AvailableChunks.Count == 0)
         {
             return;
         }
@@ -145,10 +199,48 @@ public class PlayerChunkInteraction : MonoBehaviour
         selectedAvailableChunkIndex = 0;
         placementRotation = 0f;
         placementMirrored = playerMovement.IsHorizontalInputInverted;
+        placementSourceChunk = sourceChunk;
+        placementTargetCenter = targetCenter;
         SelectAvailableChunk(selectedAvailableChunkIndex);
-        currentState = PlayerChunkInteractionState.Placing;
-        FocusCameraForInteraction(targetCenter);
-        PauseTime();
+        FocusCameraForInteraction(sourceCenter, targetCenter);
+        SetInteractionState(PlayerChunkInteractionState.Placing);
+    }
+
+    private void BeginRotation(ChunkController currentChunk)
+    {
+        selectedChunk = currentChunk;
+        SaveSelectedChunkTransform();
+        originalPlayerPosition = playerMovement.transform.position;
+        rotationPlayerLocalPosition = currentChunk.transform.InverseTransformPoint(originalPlayerPosition);
+
+        if (playerMovement.IsHorizontalInputInverted)
+        {
+            Vector3 mirroredScale = originalScale;
+            mirroredScale.x = -mirroredScale.x;
+            PreviewCurrentChunk(originalRotation, mirroredScale);
+        }
+
+        selectedChunk.SetBackgroundColor(GetInteractionColor(Color.green));
+        SetInteractionState(PlayerChunkInteractionState.Rotating);
+    }
+
+    private void RotateCurrentChunk(float rotationDelta)
+    {
+        Transform chunkTransform = selectedChunk.transform;
+        Quaternion nextRotation = Quaternion.AngleAxis(rotationDelta, Vector3.forward) * chunkTransform.rotation;
+        PreviewCurrentChunk(nextRotation, chunkTransform.localScale);
+    }
+
+    private void PreviewCurrentChunk(Quaternion rotation, Vector3 scale)
+    {
+        Transform chunkTransform = selectedChunk.transform;
+        Vector2 previousChunkCenter = selectedChunk.WorldCenter;
+
+        chunkTransform.rotation = rotation;
+        chunkTransform.localScale = scale;
+        chunkTransform.position += (Vector3)(previousChunkCenter - selectedChunk.WorldCenter);
+        playerMovement.transform.position = chunkTransform.TransformPoint(rotationPlayerLocalPosition);
+        Physics2D.SyncTransforms();
     }
 
     private void SelectNextAvailableChunk()
@@ -175,7 +267,7 @@ public class PlayerChunkInteraction : MonoBehaviour
 
     private void ApplyPlacementPreview()
     {
-        if (selectedChunk == null || playerChunkTracker.CurrentChunk == null)
+        if (selectedChunk == null)
         {
             return;
         }
@@ -189,8 +281,7 @@ public class PlayerChunkInteraction : MonoBehaviour
             : Mathf.Abs(originalScale.x);
         selectedTransform.localScale = previewScale;
 
-        Vector2 targetCenter = GetTargetCenter();
-        Vector2 centerOffset = targetCenter - selectedChunk.WorldCenter;
+        Vector2 centerOffset = placementTargetCenter - selectedChunk.WorldCenter;
         selectedTransform.position += (Vector3)centerOffset;
         selectedTransform.gameObject.SetActive(true);
         selectedChunk.SetBackgroundColor(GetInteractionColor(Color.green));
@@ -208,6 +299,10 @@ public class PlayerChunkInteraction : MonoBehaviour
         {
             ConfirmPlacing();
         }
+        else if (currentState == PlayerChunkInteractionState.Rotating)
+        {
+            ExitInteraction();
+        }
     }
 
     private void ConfirmRemoving()
@@ -223,9 +318,7 @@ public class PlayerChunkInteraction : MonoBehaviour
     private void ConfirmPlacing()
     {
         if (selectedChunk == null
-            || levelManager.IsChunkPositionOccupiedAt(
-                GetTargetCenter(),
-                PositionTolerance))
+            || levelManager.FindPlacedChunkAt(placementTargetCenter, PositionTolerance) != null)
         {
             CancelInteraction();
             return;
@@ -237,6 +330,7 @@ public class PlayerChunkInteraction : MonoBehaviour
             return;
         }
 
+        Physics2D.SyncTransforms();
         ExitInteraction();
     }
 
@@ -251,6 +345,20 @@ public class PlayerChunkInteraction : MonoBehaviour
         {
             RestoreSelectedChunk();
         }
+        else if (currentState == PlayerChunkInteractionState.Rotating)
+        {
+            if (selectedChunk != null)
+            {
+                selectedChunk.transform.SetPositionAndRotation(originalPosition, originalRotation);
+                selectedChunk.transform.localScale = originalScale;
+            }
+
+            if (playerMovement != null)
+            {
+                playerMovement.transform.position = originalPlayerPosition;
+                Physics2D.SyncTransforms();
+            }
+        }
 
         ExitInteraction();
     }
@@ -262,74 +370,34 @@ public class PlayerChunkInteraction : MonoBehaviour
             selectedChunk.RestoreBackgroundColor();
         }
 
-        RestoreCamera();
-        Time.timeScale = previousTimeScale;
-        playerMovement.SetInputEnabled(true);
-        currentState = PlayerChunkInteractionState.Normal;
+        if (interactionCamera != null)
+        {
+            interactionCamera.RestoreFollowView();
+            interactionCamera = null;
+        }
+
         selectedChunk = null;
+        placementSourceChunk = null;
+        SetInteractionState(PlayerChunkInteractionState.Normal);
     }
 
-    private void PauseTime()
+    private void SetInteractionState(PlayerChunkInteractionState state)
     {
-        previousTimeScale = Time.timeScale;
-        playerMovement.SetInputEnabled(false);
-        Time.timeScale = 0f;
+        currentState = state;
+        InteractionStateChanged?.Invoke();
     }
 
-    private void FocusCameraForInteraction(Vector2 targetCenter)
+    private void FocusCameraForInteraction(Vector2 sourceCenter, Vector2 targetCenter)
     {
-        mainCamera = Camera.main;
+        Camera mainCamera = Camera.main;
 
-        if (mainCamera == null)
+        if (mainCamera == null || !mainCamera.TryGetComponent(out interactionCamera))
         {
-            Debug.LogError("MainCamera is not found.", this);
+            Debug.LogError("MainCamera with CameraController is not found.", this);
             return;
         }
 
-        if (!cameraStateSaved)
-        {
-            cameraController = mainCamera.GetComponent<CameraController>();
-            originalCameraPosition = mainCamera.transform.position;
-            originalCameraOrthographicSize = mainCamera.orthographicSize;
-            originalCameraControllerEnabled = cameraController != null
-                && cameraController.enabled;
-            cameraStateSaved = true;
-        }
-
-        if (cameraController != null)
-        {
-            cameraController.enabled = false;
-        }
-
-        Vector2 currentChunkCenter = playerChunkTracker.CurrentChunk.WorldCenter;
-        Vector2 midpoint = (currentChunkCenter + targetCenter) * 0.5f;
-        mainCamera.orthographicSize = 12f;
-        mainCamera.transform.position = new Vector3(
-            midpoint.x,
-            midpoint.y,
-            originalCameraPosition.z
-        );
-    }
-
-    private void RestoreCamera()
-    {
-        if (!cameraStateSaved)
-        {
-            return;
-        }
-
-        if (mainCamera != null)
-        {
-            mainCamera.transform.position = originalCameraPosition;
-            mainCamera.orthographicSize = originalCameraOrthographicSize;
-        }
-
-        if (cameraController != null)
-        {
-            cameraController.enabled = originalCameraControllerEnabled;
-        }
-
-        cameraStateSaved = false;
+        interactionCamera.FocusForInteraction((sourceCenter + targetCenter) * 0.5f);
     }
 
     private void SaveSelectedChunkTransform()
@@ -356,9 +424,8 @@ public class PlayerChunkInteraction : MonoBehaviour
         selectedChunk.RestoreBackgroundColor();
     }
 
-    private bool HasClearPathToBoundary(Vector2 direction)
+    private bool HasClearPathToBoundary(ChunkController currentChunk, Vector2 direction)
     {
-        ChunkController currentChunk = playerChunkTracker.CurrentChunk;
         float boundaryDistance = currentChunk.GetBoundaryDistance(
             transform.position,
             direction
@@ -369,21 +436,24 @@ public class PlayerChunkInteraction : MonoBehaviour
             return false;
         }
 
-        RaycastHit2D hit = Physics2D.Linecast(
+        ContactFilter2D filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(solidLayerMask);
+        Physics2D.Linecast(
             transform.position,
             (Vector2)transform.position + direction * boundaryDistance,
-            solidLayerMask
+            filter,
+            boundaryHits
         );
 
-        return hit.collider == null;
-    }
+        foreach (RaycastHit2D hit in boundaryHits)
+        {
+            if (hit.collider.GetComponentInParent<ChunkController>() == currentChunk)
+            {
+                return false;
+            }
+        }
 
-    private Vector2 GetTargetCenter()
-    {
-        ChunkController currentChunk = playerChunkTracker.CurrentChunk;
-        float chunkSize = currentChunk.GetWorldSizeAlongDirection(operationDirection);
-
-        return currentChunk.WorldCenter + operationDirection * chunkSize;
+        return true;
     }
 
     private Vector2 GetFacingDirection()

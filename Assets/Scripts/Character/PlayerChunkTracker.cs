@@ -15,11 +15,13 @@ public class PlayerChunkTracker : MonoBehaviour
 
     private readonly HashSet<ChunkController> trackedChunks =
         new HashSet<ChunkController>();
+    private LevelManager levelManager;
     private int chunkLayerMask;
 
     private void Awake()
     {
         chunkLayerMask = LayerMask.GetMask(ChunkLayerName);
+        levelManager = FindObjectOfType<LevelManager>();
 
         if (chunkLayerMask == 0)
         {
@@ -29,8 +31,7 @@ public class PlayerChunkTracker : MonoBehaviour
 
     private void Start()
     {
-        RegisterOverlappingChunks();
-        RefreshCurrentChunk();
+        RefreshAtCurrentPosition();
     }
 
     private void LateUpdate()
@@ -41,6 +42,12 @@ public class PlayerChunkTracker : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         RegisterChunkFromTrigger(other);
+    }
+
+    internal void RefreshAtCurrentPosition()
+    {
+        RegisterOverlappingChunks();
+        RefreshCurrentChunk();
     }
 
     private void RegisterOverlappingChunks()
@@ -90,7 +97,10 @@ public class PlayerChunkTracker : MonoBehaviour
                 continue;
             }
 
-            if (!trackedChunk.ContainsWorldPoint(transform.position))
+            if (!trackedChunk.isActiveAndEnabled
+                || levelManager == null
+                || !levelManager.IsChunkPlaced(trackedChunk)
+                || !trackedChunk.ContainsWorldPoint(transform.position))
             {
                 continue;
             }

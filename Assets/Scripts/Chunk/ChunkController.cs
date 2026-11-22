@@ -3,23 +3,18 @@ using UnityEngine;
 public class ChunkController : MonoBehaviour
 {
     [SerializeField, HideInInspector] private int chunkId;
-    [SerializeField] private bool isMovable = true;
     [SerializeField] private BoxCollider2D boundary;
     [SerializeField] private SpriteRenderer backgroundRenderer;
+    [SerializeField] private ChunkWeather weather;
 
     public int ChunkId => chunkId;
-    public bool IsMovable => isMovable;
+    public ChunkWeather Weather => weather;
 
     private Color originalBackgroundColor;
 
     internal void AssignChunkId(int id)
     {
         chunkId = id;
-    }
-
-    internal void AssignMovableState(bool movable)
-    {
-        isMovable = movable;
     }
 
     private void Awake()

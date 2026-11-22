@@ -68,7 +68,7 @@ Docs/
 - 全局摄像机背景图片放入 `Art/Backgrounds`；区块内部背景放入 `Art/Chunks/Backgrounds`。如果使用摄像机纯色背景，则直接配置 Camera，不创建图片资源。
 - `Tile`、`Tile Palette`、物理材质、渲染设置等 Unity 功能配置资源放入 `Settings`，不放入 `Art`。
 - 当前预制体数量较少，暂不进一步分类；数量增加后再分类。
-- 当前场景包含 `MainMenu` 和玩法测试场景，均放在 `Assets/Scenes`；数量增加后再按关卡或用途分类。
+- `MainMenu`、`Level0` 和各季节关卡场景放在 `Assets/Scenes`。
 - 当前其他游戏资源数量较少，暂不建立更细的资源分类；后续需要时再定义。
 - 当前没有新增顶层目录的需要。确需新增时，应先说明用途和目录归属。
 - 游戏内对象、Prefab、场景和资源统一使用英文命名，不使用中文命名。
@@ -175,7 +175,7 @@ Background → Environment → Characters → Effects → Foreground → UI
 
 `AGENTS.md` 只记录长期有效的 AI 协作和工程修改规则，不记录阶段性任务清单或临时实验方案。
 
-玩法规则发生变化时，先更新 GDD，再检查 TDD；技术实现发生变化但玩法不变时，主要更新 TDD。
+文档随已确认的实际玩法和技术实现更新。玩法变更同步更新 GDD 和相关 TDD，纯技术变更主要更新 TDD。未实现的设计标明状态。
 
 ## 九、Git 提交约定
 

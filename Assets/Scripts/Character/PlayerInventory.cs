@@ -3,6 +3,9 @@ using UnityEngine;
 public class PlayerInventory : MonoBehaviour
 {
     private LevelManager levelManager;
+    private DandelionPickup carriedDandelion;
+
+    public bool IsCarryingDandelion => carriedDandelion != null;
 
     private void Awake()
     {
@@ -25,26 +28,34 @@ public class PlayerInventory : MonoBehaviour
 
         if (itemPickup.OnPickedUp(this))
         {
-            Destroy(itemPickup.gameObject);
+            itemPickup.OnPickupSucceeded();
         }
     }
 
-    public bool TryCollectFragment(int chunkId, int fragmentId)
+    internal bool TryCollectDandelion(DandelionPickup pickup)
     {
-        return levelManager != null
-            && levelManager.TryCollectFragment(chunkId, fragmentId);
+        if (IsCarryingDandelion)
+        {
+            return false;
+        }
+
+        carriedDandelion = pickup;
+        return true;
     }
 
-    public bool HasFragment(int chunkId, int fragmentId)
+    internal void ReturnCarriedDandelion(Vector3 spawnPosition)
     {
-        return levelManager != null
-            && levelManager.HasFragment(chunkId, fragmentId);
+        DandelionPickup pickup = carriedDandelion;
+        carriedDandelion = null;
+        if (pickup != null)
+        {
+            pickup.ReturnToSpawn(spawnPosition);
+        }
     }
 
-    public int GetCollectedFragmentCount(int chunkId)
+    internal bool TryCollectFragment(ChunkController chunk, int fragmentId)
     {
-        return levelManager == null
-            ? 0
-            : levelManager.GetCollectedFragmentCount(chunkId);
+        return levelManager != null
+            && levelManager.TryCollectFragment(chunk, fragmentId);
     }
 }

@@ -75,51 +75,71 @@ Layer 只用于物理碰撞矩阵、射线检测和其他查询筛选，不用�
 
 - 水平输入使用旧版 Input Manager 的 `Horizontal` 输入轴，输入值乘以 `moveSpeed` 后作为刚体水平速度。
 - 跳跃使用旧版 Input Manager 的 `Jump` 输入按钮，当前绑定为空格键；按下跳跃键后记录跳跃请求，在物理帧中确认玩家处于地面时，将刚体竖直速度设置为 `jumpVelocity`。
-- 区块交互使用直接键盘输入：`F` 用于进入和确认操作，`X` 用于取消，`Q` 用于旋转待放置区块，`E` 用于切换可用区块。
-- `Update` 只负责读取输入并记录跳跃请求，`FixedUpdate` 负责修改刚体速度、执行跳跃和更新移动状态。
+- 区块交互使用直接键盘输入。`F` 进入和确认操作，`X` 取消，`Q` 逆时针旋转，`E` 顺时针旋转，`R` 在放置模式切换可用区块。
+- 普通移动在 `Update` 读取输入并记录跳跃请求，在 `FixedUpdate` 修改刚体速度、执行跳跃和更新移动状态。
 
 ### 3.移动与跳跃
 
-- 水平移动通过修改 `Rigidbody2D` 的水平速度实现。
+- 正常移动时，地面和空中的水平输入均用于设置 `Rigidbody2D` 的水平速度。空中解冻后暂停移动和跳跃输入，直到检测到落地。
 - 跳跃通过设置 `Rigidbody2D` 的竖直初速度实现，竖直运动过程由物理系统和重力处理。
+- 玩家默认移动速度为 `4.2`，跳跃初速度为 `15`，玩家刚体的重力倍率为 `4.5`。
 
 ### 4.地面检测
 
-- 地面检测使用玩家根对象局部坐标中的矩形检测区域，通过 `Physics2D.OverlapBox` 查询 `Solid` Layer。
-- 地面检测区域由 `groundCheckOffset` 和 `groundCheckSize` 控制，不额外创建检测碰撞体。
+- `PlayerMovement` 每个物理帧读取一次玩家刚体在 `Solid` 图层上的实际支撑接触。移动状态、解冻后的落地判定和 `PlayerFreezeController` 共用这次采样。冻结组件在移动组件之后执行，实体碰撞箱引用用于定位头顶光照检测点。
+- 跳跃继续使用局部矩形，通过 `Physics2D.OverlapBox` 查询 `Solid` 图层。检测范围由 `groundCheckOffset` 和 `groundCheckSize` 控制。
 
 ### 5.状态机
 
-- 玩家移动状态由 `PlayerMovementState` 状态机表示，当前包含 `Idle`、`Running`、`Rising` 和 `Falling` 四种状态。
+- 玩家移动状态由 `PlayerMovementState` 状态机表示，当前包含 `Idle`、`Running`、`Rising`、`Falling` 和 `Climbing`。
 - 当前状态通过 `CurrentState` 属性提供给后续动画系统读取。
 - 玩家朝向由 `PlayerFacingDirection` 表示，当前包括 `Left`、`Right`、`Up` 和 `Down`。
 - 当存在有效水平输入时，玩家朝向根据实际生效的水平输入更新；左右控制颠倒时，朝向也使用颠倒后的实际输入判断。
-- 当玩家竖直速度绝对值超过 `verticalFacingSpeedThreshold` 时，朝向切换为 `Up` 或 `Down`；否则恢复为最近一次水平朝向。
+- 当玩家竖直速度绝对值超过 `verticalFacingSpeedThreshold` 时，朝向切换为 `Up` 或 `Down`；否则恢复为最近一次水平朝向。默认阈值为 `18.5`，高于普通起跳初速度。
 - 左右控制颠倒状态由 `isHorizontalInputInverted` 保存，并通过 `SetHorizontalInputInverted` 提供运行时修改接口。
+- `ConfusionMushroom` 使用 `AutoTrigger` 图层上的 1×1 `BoxCollider2D` Trigger，忽略玩家外围 Trigger。通过玩家实体碰撞体所属的刚体取得 `PlayerMovement`，调用 `SetHorizontalInputInverted(true)` 后停用蘑菇。预制体作为所属区块的子对象摆放。
+- 冻结由可序列化的 `isFrozen` 保存，可在 Inspector 中切换或由 `SetFrozen(bool)` 修改。`IsFrozen` 提供只读查询，与区块操作使用的输入开关独立。
+- 进入冻结时清除缓存输入和刚体速度，将移动状态设为 `Idle`，并用 `FreezeAll` 锁定刚体的位置和旋转。冻结期间跳过主动移动和跳跃。解冻时恢复原有刚体约束，速度从零开始。
+- 解冻后先经过一个物理步，再使用实际支撑接触恢复控制，避免读取区块旋转前的接触结果。掉空复位会清除等待落地的状态。
 
 ### 6.暂未实现功能
 
-- 当前暂不实现土狼时间、跳跃缓冲、加速度、减速度和特殊空中控制。
+- 普通移动暂不实现土狼时间、跳跃缓冲、加速度和减速度。
+
+### 7.冬季冻结判定
+
+- `PlayerFreezeController` 挂在 `Player` 预制体根对象上，绑定 `PlayerMovement`、`PlayerChunkTracker` 和玩家实体碰撞箱。冻结判定由所在区块的 `ChunkWeather.CanFreezePlayer` 开启，离开允许冻僵的区域时清零计时并解除天气造成的冻结。
+- `PlayerMovement.HasReceivedMovementInput` 记录进入关卡或掉空复位后的首次移动或跳跃输入。掉空时清除该标记并通过 `Respawned` 事件清零冻结计时。复位前持续按住的同方向输入等到松开、换方向或按下跳跃后恢复。
+- 在 `FixedUpdate` 读取区块是否具备日照条件。有日照时使用天气机关共用的 `WeatherMechanismPhysics.HasClearSky`，从实体碰撞箱顶部中心沿世界方向向上检测 `Solid`。无日照或被遮挡时累计冻结时间，见光时清零并解除冻结。预制体默认阈值为 `0.95` 秒。
+- 达到阈值后，只在玩家实体碰撞箱与下方 `Solid` 有支撑接触时调用 `SetFrozen(true)`。冻结使用实际碰撞接触，跳跃仍使用原地面检测框。
+- 旋转预览暂停物理帧。退出预览后，在下一个物理帧根据保留的区块位置重新判断遮挡。
+
+### 8.蒲公英滑翔与风口
+
+- `PlayerMovement` 使用玩家实体碰撞箱检测 `AutoTrigger` 图层上的 `Updraft`，只有携带蒲公英时参与检测。重叠多个风口时取最高的上升速度，风口范围随区块旋转和镜像，上升方向始终为世界上方。
+- 携带蒲公英时跳跃上升仍使用普通重力，空中水平速度默认每秒 2 格。进入风区默认每秒上升 2 格，离开风区或开始下落后默认每秒下降 1 格。上升气流和缓降期间暂时关闭重力，落地、掉空复位或冻结时恢复原重力倍率。
+- `Updraft` 预制体原点在风区底边中心，默认 `BoxCollider2D` Trigger 尺寸为 7×13，可在 Inspector 调整范围和上升速度。
 
 ## 四、玩家拾取系统
 
 ### 1.职责划分
 
 - `PlayerInventory` 挂载于玩家根对象，负责检测进入拾取触发器的物品。
-- `ItemPickup` 是所有可拾取物的抽象基类，负责定义物品类型和拾取回调接口。
+- `ItemPickup` 是所有可拾取物的抽象基类，定义拾取请求和成功回调。
 - 具体物品通过继承 `ItemPickup` 实现自己的拾取行为。
 
-### 2.物品类型与拾取回调
+### 2.拾取回调
 
-- 当前物品类型包括 `Fragment`、`Key` 和 `Collectible`。
+- 目前实现了 `FragmentPickup` 和 `DandelionPickup`。
+- 蒲公英携带状态由 `PlayerInventory` 持有的道具实例决定，`PlayerMovement.IsCarryingDandelion` 读取背包状态。
 - `ItemPickup.OnPickedUp` 返回 `bool`，用于表示本次拾取是否成功。
-- 拾取成功时，`PlayerInventory` 销毁场景中的物品对象；拾取失败时保留物品对象。
+- 拾取成功时，`PlayerInventory` 调用物品的 `OnPickupSucceeded`。默认销毁物品，蒲公英覆盖该方法并暂时停用本体。
+- 掉空复位时，`PlayerMovement` 恢复重力并通知背包归还蒲公英。背包清除携带记录，并将同一物品移到关卡出生点后重新启用。
 
 ### 3.碎片记录与关卡管理关联
 
-- `FragmentPickup` 使用 `chunkId` 和 `fragmentId` 标识所属区块与碎片编号。
-- `LevelManager` 使用 `Dictionary<int, HashSet<int>>` 保存碎片记录。
-- 外层键为 `chunkId`，内层集合保存该区块已收集的 `fragmentId`。
+- `FragmentPickup` 在 Inspector 直接引用目标区块的 `ChunkController`，并用 `fragmentId` 标记该区块内的碎片编号。
+- `LevelManager` 按 `ChunkController` 记录碎片，每个区块对应一个已收集的 `fragmentId` 集合。
 - 同一区块内的碎片编号从 `1` 开始，并且不允许重复记录。
 - 关卡开始时，`PlayerInventory` 自动查找当前场景中的 `LevelManager`，并将碎片拾取请求转交给它。
 - `PlayerInventory` 不直接保存碎片记录，只将拾取请求转交给 `LevelManager`。
@@ -135,7 +155,7 @@ Layer 只用于物理碰撞矩阵、射线检测和其他查询筛选，不用�
 玩家进入物品触发器
 → PlayerInventory 查找 ItemPickup
 → 调用 ItemPickup.OnPickedUp
-→ 返回 true 时销毁物品
+→ 返回 true 时调用 ItemPickup.OnPickupSucceeded
 → 返回 false 时保留物品
 ```
 
@@ -145,7 +165,8 @@ Layer 只用于物理碰撞矩阵、射线检测和其他查询筛选，不用�
 
 - 区块根对象使用 `Chunk` Layer 和 `Chunk` Tag，作为区块整体平移与旋转的对象。
 - 区块根对象挂载 `ChunkController`，负责提供区块边界和区块中心点信息。
-- 区块根对象下设置 `Grid`，区块内部的 Tilemap 和地图对象均作为其子对象。
+- 区块根对象挂载 `ChunkWeather`，通过 Inspector 配置并对外只读提供 `HasSunlight`、`HasRain`、`CanFreezePlayer`。默认有日照、无降雨且不冻僵。外部系统通过 `ChunkController.Weather` 获取配置并执行各自的机制。
+- `Grid` 是区块根对象的子对象，负责承载 `SolidTilemap`。机关、碎片和出口等地图对象直接挂在所属区块根对象下。
 - `Boundary` 作为区块根对象的子对象，挂载与区块范围一致的 `BoxCollider2D`。
 - `Boundary` 使用 `Chunk` Layer，并将 `Is Trigger` 开启，用于向玩家报告区块接触情况。
 - `ChunkController` 通过 Inspector 显式引用 `Boundary` 的 `BoxCollider2D`，不自动搜索子对象中的碰撞体。
@@ -157,11 +178,13 @@ Layer 只用于物理碰撞矩阵、射线检测和其他查询筛选，不用�
 ```text
 Chunk
 ├── ChunkController
+├── ChunkWeather
 ├── Grid
 │   └── SolidTilemap
 ├── Boundary
 │   └── BoxCollider2D（Trigger，16×16）
-└── Background
+├── Background
+└── 机关、碎片、出口等场景对象
 ```
 
 ### 2.Tilemap与区块碰撞
@@ -180,18 +203,19 @@ Chunk
 
 - 每个关卡配置一个 `LevelManager`，统一管理本关卡的固定区块、可活动区块和碎片需求。
 - `LevelManager` 的区块配置表按列表顺序保存区块引用、是否可移动、所需碎片数量和当前是否已放置。
-- `LevelManager` 额外维护可使用区块表，只保存已收集满碎片但当前未放置的可移动区块。
+- `LevelManager` 的 `availableChunks` 列表在 Inspector 中显示为 `Available Chunks`。它保存当前未放置且已解锁的可移动区块，关卡可在列表中配置开局可用区块，这些区块视为碎片已集齐。
 - `LevelManager` 根据配置表顺序从 `1` 开始为区块分配 `ChunkId`，并将区块根对象命名为 `Chunk_001`、`Chunk_002` 等。
-- `LevelManager` 将配置表中的可移动性写入对应 `ChunkController`，不在区块对象上手动配置该属性。
+- 区块可移动性只保存在 `LevelManager` 的区块配置表中。
 - 固定区块始终视为已放置；可移动区块的放置状态由 `LevelManager` 维护，并同步控制区块根对象是否激活。
 - 已放置的可移动区块初始化时自动视为已收集满碎片，但不加入可使用区块表。
-- 可使用区块表中的区块必须是可移动且未放置的区块。
-- 区块放置状态通过 `IsChunkPlaced` 和 `TrySetChunkPlaced` 访问，不由其他系统直接修改区块对象的激活状态。
-- `LevelManager` 只为尚未放置且 `isMovable` 为真的区块初始化碎片收集记录。
+- 初始化可使用区块表时，剔除空引用、重复引用、未配置、固定和已放置的区块，并保留有效条目的配置顺序。
+- 已确认的放置状态通过 `IsChunkPlaced` 和 `TrySetChunkPlaced` 访问。放置预览可临时激活区块对象，确认时才更新放置记录。
+- `IsChunkUnlocked` 判断区块是否已放置或已进入可用列表，`HasFragment` 查询指定碎片编号的实际拾取记录。
+- `LevelManager` 只为尚未放置、未解锁且 `isMovable` 为真的区块初始化碎片收集记录。
 - 区块碎片收集完成后，`LevelManager` 将该未放置区块加入可使用区块表。
 - 初始已放置的可移动区块不进入碎片记录表，但自动视为已收集满；被拿下后进入可使用区块表。
 - 固定区块不会被玩家背包读取，也不会进入可放置区块选择范围。
-- 区块编号按照配置表顺序生成，配置表中的区块顺序不应随意调整。
+- 调整配置表顺序会改变区块显示编号，已绑定目标引用的碎片仍指向原区块。
 
 ### 4.玩家所在区块
 
@@ -199,20 +223,19 @@ Chunk
 - `PlayerChunkTracker` 固定查询名为 `Chunk` 的 Layer，不通过 Inspector 配置区块 LayerMask。
 - `Boundary` 的触发器回调只用于注册玩家已经接触到的区块。
 - 玩家开始运行时，`PlayerChunkTracker` 会通过玩家中心点查询当前位置附近的 `Chunk` Layer 碰撞体，避免玩家初始位置已经位于区块内部时遗漏注册。
-- 已注册区块保存在内部追踪集合中；区块进入集合后不会因为玩家离开而立即移除，当前归属由玩家中心点对已注册区块逐帧重新判定。
+- 已注册区块保存在内部追踪集合中，当前归属按玩家中心点逐帧判定。候选区块必须处于激活状态且由 `LevelManager` 确认已放置。
 - 当多个已注册区块同时包含玩家中心点时，优先选择区块中心点距离玩家更近的区块。
 - 玩家所在区块的最终判定以玩家根对象位置作为角色中心点，不以角色碰撞体边缘作为判定依据。
 - `ChunkController.ContainsWorldPoint` 将玩家世界坐标转换为 `Boundary` 的局部坐标，并判断该点是否位于区块范围内。
 - 区块发生旋转时，局部坐标判定仍按照区块自身方向执行。
 - `PlayerChunkTracker.CurrentChunk` 保存当前区块，玩家中心点不属于任何区块时为空。
 - `PlayerChunkTracker.CurrentChunkCenter` 保存当前区块中心点的世界坐标；当前区块为空时为零向量。
-- 已发现的区块保存在追踪集合中，离开区块不会删除该区块记录；当前归属仍由每帧中心点判定结果决定。
-- 当前区块发生变化时触发 `CurrentChunkChanged` 事件，供摄像机和区块放置系统使用。
+- 当前区块发生变化时触发 `CurrentChunkChanged` 事件。摄像机和区块交互读取追踪器属性。
 
 ### 5.摄像机移动
 
-- 主摄像机挂载 `CameraController`。
-- 摄像机在 `LateUpdate` 中更新，确保玩家移动和区块判定完成后再调整位置。
+- `Camera` 预制体使用 `MainCamera` Tag，挂载 `CameraController`，统一管理跟随视角和区块操作视角。
+- 摄像机在 `LateUpdate` 中于区块追踪器之后更新。
 - 玩家属于区块时，摄像机目标位置为 `PlayerChunkTracker.CurrentChunkCenter`。
 - 玩家中心点不属于任何区块时，摄像机目标位置切换为玩家位置。
 - 摄像机使用 `Vector3.SmoothDamp` 平滑移动到目标位置，不采用定时跳转。
@@ -221,20 +244,18 @@ Chunk
 
 ### 6.区块拿下
 
-- 玩家根对象挂载 `PlayerChunkInteraction`，负责区块拿下和放置操作。
+- 玩家根对象挂载 `PlayerChunkInteraction`，负责区块拿下、放置和冻结时的原地旋转。
 - `PlayerChunkInteraction` 通过 Inspector 显式引用玩家身上的 `PlayerMovement` 和 `PlayerChunkTracker`，场景级 `LevelManager` 在运行时自动查找。
-- 进入拿下或放置模式时，`PlayerChunkInteraction` 调用 `PlayerMovement.SetInputEnabled(false)`，该方法会同时清除水平输入和未执行的跳跃请求；退出操作模式后重新启用输入。
-- 玩家按下 `F` 时，先检查玩家是否处于区块内，并根据当前朝向计算目标区块位置。
-- `Solid` 检测只从玩家中心点进行到当前区块对应边界，超出当前区块边界的阻挡不参与判断。
+- `PlayerChunkInteraction` 在操作状态变化时通知 `GameFlowController`，由全局流程统一设置物理时间和玩家移动输入。
+- 玩家未冻结时按下 `F`，先检查玩家是否处于区块内，并根据当前朝向计算目标区块位置。
+- 遮挡检测从玩家中心划线到当前区块对应边界，只将属于当前区块的非 Trigger `Solid` 碰撞体计为阻挡。
 - 相邻目标中心的距离根据当前区块 `Boundary` 的实际尺寸和世界方向计算，固定使用的区块尺寸不是判定依据。
-- 目标位置必须存在已放置的可移动区块，固定区块不能被拿下。
+- `LevelManager.FindPlacedChunkAt` 按目标中心查询已放置区块。可移动区块进入拿下模式，固定区块阻止操作，空位可以尝试放置。
 - 进入拿下模式时，将目标区块 `Background` 的 `SpriteRenderer` 颜色设置为红色。
 - 拿下和放置的颜色反馈使用可调节透明度，默认值为 `0.2`，避免覆盖区块原有视觉效果。
 - 满足条件后进入拿下状态并暂停游戏时间。
-- 进入拿下或放置状态时暂时禁用 `PlayerMovement` 输入，防止跳跃请求在暂停期间被缓存。
-- 进入拿下或放置状态时，主摄像机的正交尺寸设置为 `12`，位置移动到当前区块与目标区块中心的中点。
-- 操作模式期间暂时禁用 `CameraController`，避免普通摄像机跟随逻辑覆盖操作视角。
-- 通过确认、取消或其他退出路径离开操作模式时，恢复主摄像机原来的位置、正交尺寸和控制器启用状态。
+- 进入拿下或放置模式时，`PlayerChunkInteraction` 将两个区块中心的中点交给 `CameraController`。控制器暂停跟随并使用操作视角，预制体的操作正交尺寸为 `12`。
+- 退出模式时，`CameraController` 恢复原位置和正交尺寸，并继续跟随。
 - 再次按下 `F` 确认拿下，按下 `X` 取消操作。
 - 确认后通过 `LevelManager.TrySetChunkPlaced` 将目标区块设置为未放置，并加入可使用区块表。
 
@@ -242,13 +263,36 @@ Chunk
 
 - 玩家按下 `F` 时，如果目标位置没有已放置区块、当前区块边界路径没有 `Solid` 阻挡且存在可使用区块，则进入放置模式。
 - 放置模式直接激活并移动所选区块对象，不创建额外的预览对象。
+- 进入放置模式时固定来源区块和目标中心。旋转预览、切换预览和确认均使用同一个目标中心。来源区块失效时取消预览。
 - 进入放置模式时，将所选区块 `Background` 的 `SpriteRenderer` 颜色设置为绿色。
 - 进入放置模式时保存所选区块原有的激活状态、位置、旋转和缩放；取消放置时恢复这些状态。
-- 放置模式中按 `Q` 将所选区块旋转 `90` 度，按 `E` 切换下一个可使用区块。
+- 放置模式中按 `Q` 或 `E` 将预览逆时针或顺时针旋转 `90` 度，按 `R` 切换下一个可使用区块。
 - 玩家处于左右控制颠倒状态时，放置区块自动进行左右镜像；镜像状态在进入放置模式时确定。
 - 再次按下 `F` 确认放置，通过 `LevelManager.TrySetChunkPlaced` 将区块设置为已放置并从可使用区块表移除。
 - 按下 `X` 取消放置，恢复所选区块进入放置模式前的状态。
 - 通过确认或取消退出操作模式时，恢复相关区块 `Background` 的原始颜色。
+
+### 8.机关作用方向
+
+- 将 `MechanismDirection` 直接挂在机关对象上。机关对象的局部上方（`+Y`）定义作用方向，贴图朝向随该对象的 Transform 一起变化。
+- `WorldDirection` 返回考虑父级旋转和镜像后的二维单位向量。`IsFacing(Vector2 worldDirection)` 判断作用方向是否与指定世界方向同向。
+
+### 9.冻结时旋转当前区块
+
+- 玩家冻结且处于区块内时，`F` 进入 `Rotating` 状态，选中 `PlayerChunkTracker.CurrentChunk` 并暂停游戏。可移动性只影响拿下资格，原地旋转不修改区块放置记录。
+- 选中时若玩家左右颠倒，将区块当前的局部 X 缩放取反一次。`Q` 逆时针旋转 `90` 度，`E` 顺时针旋转 `90` 度。两种预览均保持区块边界的世界中心和玩家在区块内的局部位置，角色自身旋转和朝向保持原值。
+- 旋转和镜像预览直接应用变换并同步 2D 物理状态。
+- `F` 确认预览。`X` 或预览中解除冻结时，恢复区块的原位置、旋转、缩放及玩家的原位置。
+
+### 10.天气机关
+
+- `SunlightBud` 和 `AbsorbentMoss` 预制体作为所属区块的子对象摆放，读取父级 `ChunkWeather`。在 `FixedUpdate` 从预制体的采样点沿世界上方检测 `Solid`，排除机关自身的碰撞体。区块确认放置时同步物理变换。
+- `SunlightBud` 以花心为原点，切换闭合外观和预设的 3×1 `BoxCollider2D` 平台。
+- `AbsorbentMoss` 以底边中心为原点，累计淋雨达 `absorptionSeconds` 后切换到湿态。预设的 3×1 和 3×6 碰撞体底边对齐。
+- 两种机关在启用实体前都检查目标碰撞体的范围，玩家实体或其他 `Solid` 占用时等待。湿苔藓检查排除干态碰撞体。
+- `VineWall` 可作为悬空藤蔓或摆在墙上。攀爬检测面是宽 0.1 的 `AutoTrigger`。藤蔓沿世界方向竖直时，玩家实体进入范围即附着，`PlayerMovement` 用 `Vertical` 输入控制上下速度并暂停重力，跳跃脱离后离开该检测范围才可重新附着。
+- 可生长藤蔓引用所属区块的实体 Tilemap。墙体两侧的贴图和 Trigger 各自从墙面外侧向两端生长，每轮每端最多两格。每格须有墙体支撑，且墙面外侧新增的范围未被非 Trigger 的 `Solid` 占用。受阻的一侧停在障碍前，空着的一侧可继续生长。长度随区块拿下和放回保留。
+- 支撑墙所在 Tilemap 的障碍按新增范围覆盖的碰撞瓦片判断。物理重叠查询检查其他实体，跳过已经按格检测的支撑墙碰撞体。
 
 ## 六、待补充技术章节
 
@@ -276,7 +320,7 @@ Chunk
 
 ### 1.资源与启动
 
-- `Assets/Scenes/MainMenu.unity` 为构建列表首场景，原玩法场景仍为 `Assets/Scenes/URP2DSceneTemplate.unity`。
+- `Assets/Scenes/MainMenu.unity` 为构建列表首场景，`Assets/Scenes/Level0.unity` 为第 0 关。
 - `Assets/Resources/GameApplication.prefab` 包含 `GameFlowController`、两个音频播放器、EventSystem 与 uGUI Canvas。
 - `GameFlowController` 在场景加载前实例化该 Prefab，并使用 `DontDestroyOnLoad` 保留；不需要在每个关卡重复放置管理器。
 - 同一 Prefab 内的 UI、音频与流程引用均序列化绑定。关卡中的玩家与交互组件在场景加载后查找。
@@ -286,7 +330,7 @@ Chunk
 - 主菜单标题使用保留原图比例的透明 Sprite `Assets/Art/UI/MainMenuTitle.png`。
 - 主菜单标题与开始、继续、选关居中排列，声音设置和退出分别锚定左下与右下。中央按钮共用切角木牌 Sprite，悬停及键盘选中使用带暖灯高光和碎片标记的 Sprite，按钮文字以实际字形的中线垂直居中，禁用继续时压暗，角落按钮使用文字颜色反馈，原有点击事件保持序列化绑定。
 - 选关由 `LevelSelectMap` 在 `LevelSelectPanel` 中生成 16×16 格的 uGUI 地图。地图运动使用不受时间缩放影响的 UI 坐标，与关卡物理独立。
-- 关卡门按配置顺序布置，每页最多 12 扇门，超过时使用 Page Up / Page Down 切换地图。门的颜色和进关权限读取现有存档，进门复用 `GameFlowController.LoadLevel`。
+- 关卡门按配置顺序从 `00` 开始编号，每页最多 12 扇门，超过时使用 Page Up / Page Down 切换地图。门的颜色和进关权限读取现有存档，进门复用 `GameFlowController.LoadLevel`。
 - 设置界面使用三个独立音量卡片展示标签、用途说明、滑轨与百分比；打开页面时以 `SetValueWithoutNotify` 同步存档值并默认聚焦总音量，从暂停状态进入和返回时保持全局暂停。
 - 暂停界面使用半透明全屏遮罩和居中内容卡片，继续操作为默认焦点，重新开始使用警示层级；界面只调用 `GameFlowController` 的暂停、恢复、重开和返回接口，不直接修改时间缩放。
 - 通关与失败继续共用 `ResultPanel`：控制器根据流程状态切换标题、说明和暖金/暖红强调色；有下一关时默认聚焦下一关，否则默认聚焦重试。
@@ -302,23 +346,33 @@ Chunk
 - 每项包含稳定且唯一的 `id`、显示名称、完整场景路径与音乐资源。
 - ID 用于存档，后续不要随意更名；关卡顺序决定下一关与解锁顺序。
 - 新增关卡时同时加入此配置与 Build Settings，并保留原场景 GUID。
-- 当前仅配置真实存在的测试关卡，没有占位的虚构关卡。
+- 当前关卡顺序为 `Level0`、`Winter1` 至 `Winter6`、`Spring1` 至 `Spring7`。第 0 关的出口随所在区块旋转和移动，通关后解锁 `Winter1`。
+- 冬季关卡按表格中的 16 行、16 列图块生成区块。图块间的分隔空行跳过，图块内部的空格与空行保留。冬 4 的最后一段从第 90 行开始，底部补足至 16 行。`1` 生成地块，`-1` 和 `0` 分别定位玩家和过关点。
+- 冬季关卡只预放置出生区块。其他区块配置为未放置，并由关卡管理器的 `Available Chunks` 直接提供给玩家。各区块的 `ChunkWeather` 启用冻僵。
+- 春季工作簿第 0 关至第 6 关对应场景 `Spring1` 至 `Spring7`，按 16×16 格相邻摆放。全空槽留空，带地形的待放置区块按配置由碎片解锁。新增首关的存档 ID 为 `SpringIntro`，顺延的六关保留原存档 ID。
+- `Spring3` 的淋雨藤蔓区块按拿下、旋转和放回流程操作，`Spring6` 全部区块有降雨，`Spring7` 仅上层苔藓区块有降雨。
 
 ### 3.流程入口
 
 - `GameFlowController.Instance.CompleteLevel()`：仅在 Playing 状态记录通关，解锁下一关并显示结束界面；重复调用不重复记录。
 - `FailLevel()`：仅在 Playing 状态进入失败界面，不写入通关记录。
-- `RestartLevel()`：异步重新加载当前关卡，重置场景运行状态。
+- `RestartLevel()` 异步重新加载当前关卡，使用场景初始状态。即死伤害可调用此接口。
+- `RespawnPlayer()` 仅在游玩状态有效。它把玩家移回场景加载时记录的世界坐标，取消区块预览，恢复输入方向，清除速度和缓存跳跃，再刷新玩家所属区块。已收集碎片、已确认的区块修改和机关状态随当前场景保留。
 - `LoadLevel(string levelId)`：只加载已解锁且已加入构建列表的关卡。
 - `LoadNextLevel()`、`ReturnToMainMenu()`、`StartGame()`、`ContinueGame()` 提供流程入口。
-- `LevelFlowEvents` 可挂到出口或机关对象，通过 UnityEvent 绑定其公开通关、失败、重开方法。该组件本身不判断碰撞或通关条件。
-- `LevelFlowTrigger` 可挂到带 2D Trigger Collider 的出口或伤害区域，使用 Inspector 选择通关或失败；它只响应自身或所属刚体带 `Player` Tag 的碰撞体，默认只触发一次。
+- `LevelFlowEvents` 可挂到出口或机关对象，通过 UnityEvent 绑定其公开通关、失败、整关重开和玩家复位方法。该组件本身不判断碰撞或通关条件。
+- `LevelFlowTrigger` 可挂到带 2D Trigger Collider 的出口、伤害区域或掉空区域，使用 Inspector 选择通关、失败、玩家复位或重载当前关卡。它只响应自身或所属刚体带 `Player` Tag 的碰撞体，默认只触发一次。
+- 在关卡场景中直接摆放玩家，玩家根对象的位置就是出生位置。`GameFlowController` 在加载关卡时将该位置记录在内存中，供 `RespawnPlayer()` 使用。
+- 过关点使用 `Assets/Prefab/LevelExitPoint.prefab`，配置为 `Exit` Tag、`AutoTrigger` Layer 和 `BoxCollider2D` Trigger，通过 `LevelFlowTrigger` 接入通关流程。只有玩家实体碰撞体进入才触发通关，外围交互 Trigger 不触发。
+- 第 0 关和冬、春关卡使用 `Assets/Prefab/FallBoundary.prefab`。预制体配置可重复触发的 `RespawnPlayer` 动作，只响应玩家实体碰撞体。各场景根据地图布局配置位置和覆盖宽度。
+- 致死钟乳石使用 `Assets/Prefab/LethalStalactite.prefab`，作为所属区块的子对象摆放。预制体使用 `Damage` Layer 和贴合三角形的 `PolygonCollider2D` Trigger，玩家实体碰撞体进入时由 `LevelFlowTrigger` 重载当前关卡。
 - 场景切换时取消当前区块预览、禁用移动输入，使用不受 Time.timeScale 影响的淡入淡出，加载期间屏蔽重复加载请求。
 
 ### 4.暂停与输入
 
 - 全局状态包含 MainMenu、Playing、Paused、Completed、Failed 和 Loading。
-- 菜单暂停保留区块交互状态；继续时根据交互状态决定恢复时间还是保持零时间。
+- `GameFlowController` 统一写入 `Time.timeScale` 和 `PlayerMovement.SetInputEnabled`。游玩期间只有退出区块操作后才恢复物理和移动输入。
+- 菜单暂停保留区块交互状态，继续时恢复到先前的操作。加载和结算期间保持暂停，区块操作取消后仍由当前全局状态决定是否恢复。
 - `PlayerChunkInteraction.Update` 在全局流程阻止输入时不读取操作键。
 - 新增 `CancelCurrentInteraction()` 接口，在通关、失败和切换场景前复用原有取消逻辑恢复预览与摄像机。
 - HUD 只读现有 `LevelManager` 与 `PlayerChunkInteraction`，不持有第二份背包／区块数据。

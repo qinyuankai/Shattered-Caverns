@@ -188,9 +188,12 @@ public static class GameFlowValidation
                     TriggerFlow(LevelFlowTriggerAction.CompleteLevel);
                     flow.CompleteLevel(); flow.FailLevel();
                     Require(flow.State == GameFlowState.Completed && flow.SaveStore.IsCompleted(flow.CurrentLevel.id), "Completion is idempotent and saves progress");
-                    Require(!Get<Button>(ui, "nextLevelButton").gameObject.activeSelf, "Final level hides next-level button");
+                    bool hasNextLevel = flow.HasNextLevel();
+                    Require(Get<Button>(ui, "nextLevelButton").gameObject.activeSelf == hasNextLevel,
+                        "Completion shows the next-level button when a next level exists");
+                    GameObject focusedButton = Get<Button>(ui, hasNextLevel ? "nextLevelButton" : "retryButton").gameObject;
                     Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
-                        == ui.transform.Find("ResultPanel/RetryButton").gameObject, "Final completion focuses Retry");
+                        == focusedButton, "Completion focuses the next available action");
                     Click(ui, "ResultPanel/MenuButton"); step++; break;
                 case 3:
                     Require(flow.State == GameFlowState.MainMenu, "Return to menu succeeds");
@@ -218,6 +221,7 @@ public static class GameFlowValidation
         PlayerChunkInteraction interaction = UnityEngine.Object.FindObjectOfType<PlayerChunkInteraction>();
         MethodInfo enter = typeof(PlayerChunkInteraction).GetMethod("TryEnterInteractionState", BindingFlags.Instance | BindingFlags.NonPublic);
         PlayerMovement player = UnityEngine.Object.FindObjectOfType<PlayerMovement>();
+        bool wasFrozen = player.IsFrozen;
         FieldInfo facing = typeof(PlayerMovement).GetField("facingDirection", BindingFlags.Instance | BindingFlags.NonPublic);
         foreach (PlayerFacingDirection direction in Enum.GetValues(typeof(PlayerFacingDirection)))
         {
@@ -225,11 +229,17 @@ public static class GameFlowValidation
             enter.Invoke(interaction, null);
             if (interaction.CurrentState != PlayerChunkInteractionState.Normal) break;
         }
+        if (interaction.CurrentState == PlayerChunkInteractionState.Normal)
+        {
+            player.SetFrozen(true);
+            enter.Invoke(interaction, null);
+        }
         Require(interaction.CurrentState != PlayerChunkInteractionState.Normal, "Existing scene can enter chunk operation");
         flow.PauseGame(); flow.ResumeGame();
         Require(Time.timeScale == 0 && interaction.CurrentState != PlayerChunkInteractionState.Normal,
             "Pause/resume retains chunk operation pause");
         interaction.CancelCurrentInteraction();
+        player.SetFrozen(wasFrozen);
         Require(Time.timeScale == 1, "Cancelling chunk operation restores time");
     }
 

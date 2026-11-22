@@ -16,4 +16,9 @@ public class LevelFlowEvents : MonoBehaviour
     {
         GameFlowController.Instance?.RestartLevel();
     }
+
+    public void RespawnPlayer()
+    {
+        GameFlowController.Instance?.RespawnPlayer();
+    }
 }

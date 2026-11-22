@@ -9,6 +9,45 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 79771d9c9ec2b42e19e3a72e637596b4
   - enabled: 1
-    path: Assets/Scenes/URP2DSceneTemplate.unity
+    path: Assets/Scenes/Level0.unity
     guid: 2cda990e2423bbf4892e6590ba056729
+  - enabled: 1
+    path: Assets/Scenes/Winter1.unity
+    guid: 9ef12fc61694427abe03f1c50990cdd0
+  - enabled: 1
+    path: Assets/Scenes/Winter2.unity
+    guid: ee469a171b014355a588fd7fcf1d98be
+  - enabled: 1
+    path: Assets/Scenes/Winter3.unity
+    guid: a19c6cad754a4de7ad5b858db76e2ba2
+  - enabled: 1
+    path: Assets/Scenes/Winter4.unity
+    guid: b761d719fce14ecda81ada5ae1755f95
+  - enabled: 1
+    path: Assets/Scenes/Winter5.unity
+    guid: df4d8040be7245eca31f42a9c48232a6
+  - enabled: 1
+    path: Assets/Scenes/Winter6.unity
+    guid: bbe962b81dac43bb8442514dd2034391
+  - enabled: 1
+    path: Assets/Scenes/Spring1.unity
+    guid: 46741556191a4aab978c1ad3e0f6cceb
+  - enabled: 1
+    path: Assets/Scenes/Spring2.unity
+    guid: fef151f28da24122937962c8953b123f
+  - enabled: 1
+    path: Assets/Scenes/Spring3.unity
+    guid: 7bef17ab75ad40dca701c5cc0ad8bf35
+  - enabled: 1
+    path: Assets/Scenes/Spring4.unity
+    guid: a2452ef339a140cf8d9d0bb324c302de
+  - enabled: 1
+    path: Assets/Scenes/Spring5.unity
+    guid: 5e1a417bbf034b79944fe0d70e983866
+  - enabled: 1
+    path: Assets/Scenes/Spring6.unity
+    guid: 8cc87aab0190491da7b58fd80c50dbdb
+  - enabled: 1
+    path: Assets/Scenes/Spring7.unity
+    guid: b541e63e60394f5cab86ce431fef5f48
   m_configObjects: {}

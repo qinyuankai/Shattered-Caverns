@@ -14,9 +14,61 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mainMenuScenePath: Assets/Scenes/MainMenu.unity
   levels:
-  - id: cavern-01
-    displayName: "\u521D\u63A2\u6D1E\u7A9F"
-    scenePath: Assets/Scenes/URP2DSceneTemplate.unity
+  - id: Level0
+    displayName: Level0
+    scenePath: Assets/Scenes/Level0.unity
+    music: {fileID: 0}
+  - id: Winter1
+    displayName: Winter1
+    scenePath: Assets/Scenes/Winter1.unity
+    music: {fileID: 0}
+  - id: Winter2
+    displayName: Winter2
+    scenePath: Assets/Scenes/Winter2.unity
+    music: {fileID: 0}
+  - id: Winter3
+    displayName: Winter3
+    scenePath: Assets/Scenes/Winter3.unity
+    music: {fileID: 0}
+  - id: Winter4
+    displayName: Winter4
+    scenePath: Assets/Scenes/Winter4.unity
+    music: {fileID: 0}
+  - id: Winter5
+    displayName: Winter5
+    scenePath: Assets/Scenes/Winter5.unity
+    music: {fileID: 0}
+  - id: Winter6
+    displayName: Winter6
+    scenePath: Assets/Scenes/Winter6.unity
+    music: {fileID: 0}
+  - id: SpringIntro
+    displayName: Spring1
+    scenePath: Assets/Scenes/Spring1.unity
+    music: {fileID: 0}
+  - id: Spring1
+    displayName: Spring2
+    scenePath: Assets/Scenes/Spring2.unity
+    music: {fileID: 0}
+  - id: Spring2
+    displayName: Spring3
+    scenePath: Assets/Scenes/Spring3.unity
+    music: {fileID: 0}
+  - id: Spring3
+    displayName: Spring4
+    scenePath: Assets/Scenes/Spring4.unity
+    music: {fileID: 0}
+  - id: Spring4
+    displayName: Spring5
+    scenePath: Assets/Scenes/Spring5.unity
+    music: {fileID: 0}
+  - id: Spring5
+    displayName: Spring6
+    scenePath: Assets/Scenes/Spring6.unity
+    music: {fileID: 0}
+  - id: Spring6
+    displayName: Spring7
+    scenePath: Assets/Scenes/Spring7.unity
     music: {fileID: 0}
   menuMusic: {fileID: 0}
   buttonSound: {fileID: 0}

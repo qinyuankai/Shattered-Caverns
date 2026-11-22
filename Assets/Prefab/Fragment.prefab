@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f757ccb593664fe4caa18697a580ca16, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  chunkId: 1
+  targetChunk: {fileID: 0}
   fragmentId: 1
 --- !u!58 &7604036353233993108
 CircleCollider2D:

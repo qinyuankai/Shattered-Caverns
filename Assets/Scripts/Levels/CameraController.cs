@@ -1,16 +1,25 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Camera))]
+[DefaultExecutionOrder(20)]
 public class CameraController : MonoBehaviour
 {
     [SerializeField] private PlayerChunkTracker playerChunkTracker;
     [SerializeField] private Transform player;
     [SerializeField, Min(0f)] private float smoothTime = 0.2f;
     [SerializeField] private float cameraZ = -10f;
+    [SerializeField, Min(0.01f)] private float interactionSize = 12f;
 
+    private Camera controlledCamera;
     private Vector3 movementVelocity;
+    private bool isFocusedForInteraction;
+    private Vector3 followPositionBeforeInteraction;
+    private float followSizeBeforeInteraction;
 
     private void Awake()
     {
+        controlledCamera = GetComponent<Camera>();
+
         if (playerChunkTracker == null)
         {
             playerChunkTracker = FindObjectOfType<PlayerChunkTracker>();
@@ -29,7 +38,7 @@ public class CameraController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (playerChunkTracker == null)
+        if (isFocusedForInteraction || playerChunkTracker == null)
         {
             return;
         }
@@ -43,6 +52,32 @@ public class CameraController : MonoBehaviour
             ref movementVelocity,
             smoothTime
         );
+    }
+
+    internal void FocusForInteraction(Vector2 targetPosition)
+    {
+        if (!isFocusedForInteraction)
+        {
+            followPositionBeforeInteraction = transform.position;
+            followSizeBeforeInteraction = controlledCamera.orthographicSize;
+            movementVelocity = Vector3.zero;
+            isFocusedForInteraction = true;
+        }
+
+        controlledCamera.orthographicSize = interactionSize;
+        transform.position = new Vector3(targetPosition.x, targetPosition.y, followPositionBeforeInteraction.z);
+    }
+
+    internal void RestoreFollowView()
+    {
+        if (!isFocusedForInteraction)
+        {
+            return;
+        }
+
+        transform.position = followPositionBeforeInteraction;
+        controlledCamera.orthographicSize = followSizeBeforeInteraction;
+        isFocusedForInteraction = false;
     }
 
     private Vector2 GetTargetPosition()
