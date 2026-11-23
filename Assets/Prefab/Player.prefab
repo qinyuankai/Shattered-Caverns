@@ -27,7 +27,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.9, y: 0.9, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1321399212581310594}
@@ -159,8 +159,8 @@ BoxCollider2D:
     adaptiveTiling: 0
   m_AutoTiling: 0
   serializedVersion: 2
-  m_Size: {x: 0.95, y: 0.95}
-  m_EdgeRadius: 0.01
+  m_Size: {x: 0.8, y: 0.8}
+  m_EdgeRadius: 0.05
 --- !u!1 &6769446548641866583
 GameObject:
   m_ObjectHideFlags: 0
@@ -281,7 +281,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   moveSpeed: 4.2
-  jumpVelocity: 15
+  jumpVelocity: 18
   isHorizontalInputInverted: 0
   isFrozen: 0
   verticalFacingSpeedThreshold: 0.01
@@ -298,6 +298,7 @@ MonoBehaviour:
     m_Bits: 1024
   dandelionAirSpeed: 2
   dandelionDescentSpeed: 1
+  climbSpeed: 3
 --- !u!114 &2479189628803634129
 MonoBehaviour:
   m_ObjectHideFlags: 0

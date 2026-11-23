@@ -55,7 +55,7 @@ MonoBehaviour:
     m_Bits: 256
   blockingLayers:
     serializedVersion: 2
-    m_Bits: 320
+    m_Bits: 64
   absorptionSeconds: 3
 --- !u!1 &561290011
 GameObject:

@@ -5,6 +5,13 @@ using UnityEngine.Tilemaps;
 [DisallowMultipleComponent]
 public sealed class VineWall : MonoBehaviour
 {
+    private enum WallSurfaces
+    {
+        Both,
+        FrontOnly,
+        BackOnly
+    }
+
     private const float CellEdgeInset = 0.001f;
 
     [SerializeField] private MechanismDirection direction;
@@ -16,6 +23,7 @@ public sealed class VineWall : MonoBehaviour
     [SerializeField] private LayerMask solidLayers;
     [SerializeField, Min(1)] private int initialLength = 1;
     [SerializeField, Min(0f)] private float wallWidth;
+    [SerializeField] private WallSurfaces wallSurfaces = WallSurfaces.Both;
     [SerializeField, Min(0.05f)] private float growthInterval = 0.5f;
 
     private readonly List<RaycastHit2D> skyHits = new List<RaycastHit2D>();
@@ -38,10 +46,16 @@ public sealed class VineWall : MonoBehaviour
         }
 
         frontSpan = backSpan = (0, Mathf.Max(1, initialLength));
-        float frontX = wallWidth > 0f ? (wallWidth + frontTrigger.size.x) * 0.5f : 0f;
-        UpdateSurface(frontTrigger, frontVisual, frontX, frontSpan);
+        bool hasWall = wallWidth > 0f;
+        frontTrigger.enabled = !hasWall || wallSurfaces != WallSurfaces.BackOnly;
+        frontVisual.gameObject.SetActive(frontTrigger.enabled);
+        if (frontTrigger.enabled)
+        {
+            float frontX = hasWall ? (wallWidth + frontTrigger.size.x) * 0.5f : 0f;
+            UpdateSurface(frontTrigger, frontVisual, frontX, frontSpan);
+        }
 
-        backTrigger.enabled = wallWidth > 0f;
+        backTrigger.enabled = hasWall && wallSurfaces != WallSurfaces.FrontOnly;
         backVisual.gameObject.SetActive(backTrigger.enabled);
         if (backTrigger.enabled)
         {
@@ -65,7 +79,10 @@ public sealed class VineWall : MonoBehaviour
         }
 
         elapsed = 0f;
-        GrowSurface(ref frontSpan, frontTrigger, frontVisual);
+        if (frontTrigger.enabled)
+        {
+            GrowSurface(ref frontSpan, frontTrigger, frontVisual);
+        }
         if (backTrigger.enabled)
         {
             GrowSurface(ref backSpan, backTrigger, backVisual);
@@ -86,11 +103,11 @@ public sealed class VineWall : MonoBehaviour
 
     private bool ReceivesRain(float y)
     {
-        float side = wallWidth * 0.5f + frontTrigger.size.x;
-        return WeatherMechanismPhysics.HasClearSky(
-                transform.TransformPoint(new Vector3(side, y, 0f)), solidLayers, null, skyHits)
-            || WeatherMechanismPhysics.HasClearSky(
-                transform.TransformPoint(new Vector3(-side, y, 0f)), solidLayers, null, skyHits);
+        float halfWall = wallWidth * 0.5f;
+        return (frontTrigger.enabled && WeatherMechanismPhysics.HasClearSky(
+                transform.TransformPoint(new Vector3(halfWall + frontTrigger.size.x, y, 0f)), solidLayers, null, skyHits))
+            || (backTrigger.enabled && WeatherMechanismPhysics.HasClearSky(
+                transform.TransformPoint(new Vector3(-halfWall - backTrigger.size.x, y, 0f)), solidLayers, null, skyHits));
     }
 
     private int CountGrowableCells(float endY, int step, BoxCollider2D trigger)

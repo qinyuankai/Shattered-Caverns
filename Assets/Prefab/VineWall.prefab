@@ -162,6 +162,7 @@ MonoBehaviour:
     m_Bits: 256
   initialLength: 1
   wallWidth: 0
+  wallSurfaces: 0
   growthInterval: 0.5
 --- !u!1 &561320011
 GameObject:

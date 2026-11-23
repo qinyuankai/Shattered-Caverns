@@ -240,7 +240,7 @@ public class PlayerChunkInteraction : MonoBehaviour
         chunkTransform.localScale = scale;
         chunkTransform.position += (Vector3)(previousChunkCenter - selectedChunk.WorldCenter);
         playerMovement.transform.position = chunkTransform.TransformPoint(rotationPlayerLocalPosition);
-        Physics2D.SyncTransforms();
+        levelManager.NotifyChunkLayoutChanged();
     }
 
     private void SelectNextAvailableChunk()
@@ -285,6 +285,7 @@ public class PlayerChunkInteraction : MonoBehaviour
         selectedTransform.position += (Vector3)centerOffset;
         selectedTransform.gameObject.SetActive(true);
         selectedChunk.SetBackgroundColor(GetInteractionColor(Color.green));
+        levelManager.NotifyChunkLayoutChanged();
     }
 
     private void ConfirmInteraction()
@@ -301,6 +302,7 @@ public class PlayerChunkInteraction : MonoBehaviour
         }
         else if (currentState == PlayerChunkInteractionState.Rotating)
         {
+            levelManager.NotifyChunkLayoutChanged();
             ExitInteraction();
         }
     }
@@ -330,7 +332,6 @@ public class PlayerChunkInteraction : MonoBehaviour
             return;
         }
 
-        Physics2D.SyncTransforms();
         ExitInteraction();
     }
 
@@ -341,6 +342,9 @@ public class PlayerChunkInteraction : MonoBehaviour
 
     private void CancelInteraction()
     {
+        bool restoreLayout = currentState == PlayerChunkInteractionState.Placing
+            || currentState == PlayerChunkInteractionState.Rotating;
+
         if (currentState == PlayerChunkInteractionState.Placing)
         {
             RestoreSelectedChunk();
@@ -356,8 +360,12 @@ public class PlayerChunkInteraction : MonoBehaviour
             if (playerMovement != null)
             {
                 playerMovement.transform.position = originalPlayerPosition;
-                Physics2D.SyncTransforms();
             }
+        }
+
+        if (restoreLayout && levelManager != null)
+        {
+            levelManager.NotifyChunkLayoutChanged();
         }
 
         ExitInteraction();

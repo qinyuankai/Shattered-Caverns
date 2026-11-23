@@ -25,7 +25,7 @@ public class PlayerMovement : MonoBehaviour
     private const float VerticalMovementTolerance = 0.01f;
 
     [SerializeField] private float moveSpeed = 4.2f;
-    [SerializeField] private float jumpVelocity = 15f;
+    [SerializeField] private float jumpVelocity = 18f;
     [SerializeField] private bool isHorizontalInputInverted;
     [SerializeField] private bool isFrozen;
     [SerializeField, Min(0f)] private float verticalFacingSpeedThreshold = 0.01f;
@@ -227,7 +227,7 @@ public class PlayerMovement : MonoBehaviour
         bool leftUpdraft = isRidingUpdraft && updraftSpeed <= 0f;
         isRidingUpdraft = updraftSpeed > 0f;
         bool isAirborne = !HasGroundSupport || jumped || isRidingUpdraft;
-        bool isGliding = carryingDandelion && isAirborne
+        bool isGliding = carryingDandelion && isAirborne && verticalInput > 0f
             && (velocity.y <= 0f || (leftUpdraft && !jumped));
 
         velocity.x = horizontalInput * (carryingDandelion && isAirborne ? dandelionAirSpeed : moveSpeed);

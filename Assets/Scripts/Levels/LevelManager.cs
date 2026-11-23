@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -41,6 +42,7 @@ public class LevelManager : MonoBehaviour
 
     public IReadOnlyList<LevelChunkConfiguration> ChunkConfigurations => chunkConfigurations;
     public IReadOnlyList<ChunkController> AvailableChunks => availableChunks;
+    internal event Action ChunkLayoutChanged;
 
     private readonly Dictionary<ChunkController, HashSet<int>> collectedFragments =
         new Dictionary<ChunkController, HashSet<int>>();
@@ -51,6 +53,11 @@ public class LevelManager : MonoBehaviour
         ApplyPlacementStates();
         ValidateAvailableChunks();
         InitializeFragmentRecords();
+    }
+
+    private void Start()
+    {
+        NotifyChunkLayoutChanged();
     }
 
     private void OnValidate()
@@ -156,7 +163,14 @@ public class LevelManager : MonoBehaviour
         }
 
         RefreshDebugView();
+        NotifyChunkLayoutChanged();
         return true;
+    }
+
+    internal void NotifyChunkLayoutChanged()
+    {
+        Physics2D.SyncTransforms();
+        ChunkLayoutChanged?.Invoke();
     }
 
     public bool IsChunkAvailable(int chunkId)

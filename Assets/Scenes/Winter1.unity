@@ -203,14 +203,6 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6168568198300609315, guid: 8ce2aee079a8d0e4289543da2fa9c4e4, type: 3}
-      propertyPath: m_Size.x
-      value: 0.95
-      objectReference: {fileID: 0}
-    - target: {fileID: 6168568198300609315, guid: 8ce2aee079a8d0e4289543da2fa9c4e4, type: 3}
-      propertyPath: m_Size.y
-      value: 0.95
-      objectReference: {fileID: 0}
     - target: {fileID: 7767663760128732614, guid: 8ce2aee079a8d0e4289543da2fa9c4e4, type: 3}
       propertyPath: m_Name
       value: Player
@@ -377,11 +369,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1992341832143734512, guid: c72393cd0e9e487eb697f7f4999107fb, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1992341832143734512, guid: c72393cd0e9e487eb697f7f4999107fb, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -29
+      value: -45
       objectReference: {fileID: 0}
     - target: {fileID: 1992341832143734512, guid: c72393cd0e9e487eb697f7f4999107fb, type: 3}
       propertyPath: m_LocalPosition.z
@@ -407,10 +399,6 @@ PrefabInstance:
     - target: {fileID: 356539654248096442, guid: c18813a6533d77943b779811ee29bd12, type: 3}
       propertyPath: m_Name
       value: Chunk_001
-      objectReference: {fileID: 0}
-    - target: {fileID: 6298161000000000047, guid: c18813a6533d77943b779811ee29bd12, type: 3}
-      propertyPath: canFreezePlayer
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 356539654248096442, guid: c18813a6533d77943b779811ee29bd12, type: 3}
       propertyPath: m_IsActive
@@ -1624,6 +1612,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6298161000000000047, guid: c18813a6533d77943b779811ee29bd12, type: 3}
+      propertyPath: canFreezePlayer
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
@@ -1659,10 +1651,6 @@ PrefabInstance:
     - target: {fileID: 356539654248096442, guid: c18813a6533d77943b779811ee29bd12, type: 3}
       propertyPath: m_Name
       value: Chunk_002
-      objectReference: {fileID: 0}
-    - target: {fileID: 6298161000000000047, guid: c18813a6533d77943b779811ee29bd12, type: 3}
-      propertyPath: canFreezePlayer
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 356539654248096442, guid: c18813a6533d77943b779811ee29bd12, type: 3}
       propertyPath: m_IsActive
@@ -2443,6 +2431,10 @@ PrefabInstance:
     - target: {fileID: 5859802153978539198, guid: c18813a6533d77943b779811ee29bd12, type: 3}
       propertyPath: m_LocalPosition.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6298161000000000047, guid: c18813a6533d77943b779811ee29bd12, type: 3}
+      propertyPath: canFreezePlayer
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

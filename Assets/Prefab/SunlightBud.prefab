@@ -56,7 +56,7 @@ MonoBehaviour:
     m_Bits: 256
   blockingLayers:
     serializedVersion: 2
-    m_Bits: 320
+    m_Bits: 64
 --- !u!1 &561280011
 GameObject:
   m_ObjectHideFlags: 0
