@@ -34,6 +34,7 @@ public static class GameFlowValidation
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
         ValidateConfiguration();
+        ValidateLevelSelectVisualReferences();
         foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets" }))
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
@@ -86,6 +87,27 @@ public static class GameFlowValidation
             throw new Exception(label + " scene is not enabled in Build Settings: " + path);
     }
 
+    private static void ValidateLevelSelectVisualReferences()
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/GameApplication.prefab");
+        if (prefab == null) throw new Exception("Missing Assets/Resources/GameApplication.prefab");
+        GameInterfaceController ui = prefab.GetComponentInChildren<GameInterfaceController>(true);
+        if (ui == null) throw new Exception("GameApplication prefab is missing GameInterfaceController");
+
+        Sprite[] entrances = Get<Sprite[]>(ui, "levelEntrances");
+        if (entrances == null || entrances.Length < 4 || Array.Exists(entrances, sprite => sprite == null)
+            || new HashSet<Sprite>(entrances).Count != entrances.Length)
+            throw new Exception("Assign at least four distinct map entrance Sprites");
+        string[] fields = { "levelMapBackground", "levelExplorer", "levelTierBoard" };
+        foreach (string field in fields)
+        {
+            Sprite sprite = GetSpriteField(ui, field);
+            string path = AssetDatabase.GetAssetPath(sprite);
+            if (!path.StartsWith("Assets/Art/UI/", StringComparison.Ordinal))
+                throw new Exception("GameApplication " + field + " must reference a Sprite in Assets/Art/UI: " + path);
+        }
+    }
+
     private static void OnPlayModeChanged(PlayModeStateChange state)
     {
         if (!SessionState.GetBool("Caverns.Validation", false)) return;
@@ -130,19 +152,24 @@ public static class GameFlowValidation
                     TestSaveNormalization(flow);
                     ui.OpenLevelSelect();
                     Require(Get<GameObject>(ui, "levelSelectPanel").activeSelf, "Level selection opens");
+                    step = -1; break;
+                case -1:
                     Transform levelPanel = Get<GameObject>(ui, "levelSelectPanel").transform;
-                    Transform cavern = levelPanel.Find("LevelMap/Cavern");
-                    Require(cavern != null && cavern.Find("Explorer") != null && cavern.Find("Door") != null,
+                    Require(levelPanel.Find("Title") == null && levelPanel.Find("MapControls") == null && levelPanel.Find("DoorStatus") == null,
+                        "Level selection has no heading or operation prompts");
+                    Transform cavern = levelPanel.Find("TierMap");
+                    Require(cavern != null && cavern.Find("Window/Route/Explorer") != null && cavern.Find("Window/Route/Door_00") != null,
                         "Level selection builds the cavern, explorer and level doors");
                     object map = Get<object>(ui, "levelSelectMap");
-                    MethodInfo move = map.GetType().GetMethod("Move", BindingFlags.Instance | BindingFlags.NonPublic);
-                    for (int frame = 0; frame < 14; frame++)
-                        move.Invoke(map, new object[] { frame < 6 ? 1f : 0f, 0.05f });
-                    MethodInfo findNearbyDoor = map.GetType().GetMethod("FindNearbyDoor",
-                        BindingFlags.Instance | BindingFlags.NonPublic);
-                    Require((int)findNearbyDoor.Invoke(map, null) == 0,
-                        "The explorer lands on the first platform and reaches the first configured door");
-                    ui.Back();
+                    TestLevelSelectVisuals(ui, flow, cavern, map);
+                    step = 1; break;
+                case 1:
+                    ClickPointer(ui, "LevelSelectPanel/BackButton");
+                    Require(Get<GameObject>(ui, "mainMenuPanel").activeSelf
+                        && !Get<GameObject>(ui, "levelSelectPanel").activeSelf,
+                        "Level selection returns to the main menu");
+                    step++; break;
+                case 2:
                     ClickPointer(ui, "MainMenuPanel/SettingsButton");
                     Require(Get<GameObject>(ui, "settingsPanel").activeSelf, "Pointer raycast and click open settings");
                     Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject == Get<Slider>(ui, "masterSlider").gameObject,
@@ -157,8 +184,11 @@ public static class GameFlowValidation
                         && Mathf.Approximately(loaded.Data.soundVolume, 0.2f), "Volume sliders persist and reload");
                     Click(ui, "MainMenuPanel/StartButton");
                     step++; break;
-                case 1:
+                case 3:
                     Require(flow.State == GameFlowState.Playing && flow.CurrentLevel != null, "Start button loads configured level");
+                    Transform hud = ui.transform.Find("GameHUD");
+                    Require(hud.childCount == 1 && hud.Find("PauseButton") != null,
+                        "Gameplay HUD only shows the pause button");
                     Require(UnityEngine.Object.FindObjectsOfType<GameFlowController>().Length == 1, "Only one persistent application exists");
                     Require(UnityEngine.Object.FindObjectsOfType<UnityEngine.EventSystems.EventSystem>().Length == 1, "Only one active event system exists");
                     initialPosition = UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position;
@@ -181,7 +211,7 @@ public static class GameFlowValidation
                     UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position = new Vector3(99, 99, 0);
                     Click(ui, "ResultPanel/RetryButton");
                     step++; break;
-                case 2:
+                case 4:
                     Require(flow.State == GameFlowState.Playing, "Retry reloads level");
                     Require(Vector3.Distance(UnityEngine.Object.FindObjectOfType<PlayerMovement>().transform.position, initialPosition) < 3,
                         "Reload restores player spawn instead of retaining modified transform");
@@ -195,16 +225,28 @@ public static class GameFlowValidation
                     Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
                         == focusedButton, "Completion focuses the next available action");
                     Click(ui, "ResultPanel/MenuButton"); step++; break;
-                case 3:
+                case 5:
                     Require(flow.State == GameFlowState.MainMenu, "Return to menu succeeds");
                     Require(UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject
                         == ui.transform.Find("MainMenuPanel/StartButton").gameObject, "Main menu focuses Start");
                     Require(Get<Button>(ui, "continueButton").interactable, "Saved level enables Continue");
                     Require(Mathf.Approximately(flow.AudioPlayer.MasterVolume, 0.4f), "Audio settings survive scene changes");
                     Click(ui, "MainMenuPanel/ContinueButton"); step++; break;
-                case 4:
+                case 6:
                     Require(flow.State == GameFlowState.Playing, "Continue loads last level");
                     TestAudio(flow);
+                    flow.ReturnToMainMenu();
+                    step++; break;
+                case 7:
+                    ui.OpenLevelSelect();
+                    object mapForEntry = Get<object>(ui, "levelSelectMap");
+                    GetMethod(mapForEntry, "TryEnter").Invoke(mapForEntry, null);
+                    Require(Get<int>(mapForEntry, "entering") == 0, "The explorer steps into the open mouth");
+                    step++; break;
+                case 8:
+                    if (flow.State == GameFlowState.MainMenu) return;
+                    Require(flow.State == GameFlowState.Playing && flow.CurrentLevel.id == flow.Configuration.Levels[0].id,
+                        "Entering a map door loads the corresponding level scene");
                     Require(errors.Count == 0, "No runtime errors during flow validation");
                     Finish(null); break;
             }
@@ -271,6 +313,81 @@ public static class GameFlowValidation
         flow.SaveStore.Save();
     }
 
+    private static void TestLevelSelectVisuals(GameInterfaceController ui, GameFlowController flow,
+        Transform cavern, object map)
+    {
+        Transform route = cavern.Find("Window/Route");
+        Require(cavern.parent.Find("Backdrop").GetComponent<Image>().sprite == GetSpriteField(ui, "levelMapBackground")
+            && route.Find("RockTier_1").GetComponent<RawImage>().texture == GetSpriteField(ui, "levelTierBoard").texture
+            && route.Find("Explorer").GetComponent<Image>().sprite == GetSpriteField(ui, "levelExplorer"),
+            "Map uses the tier artwork and the existing explorer");
+        Require(cavern.Find("Page") == null && cavern.Find("NextPage") == null && cavern.Find("PreviousPage") == null,
+            "Continuous map has no paging controls");
+        Image[] doors = Get<Image[]>(map, "doors");
+        Require(doors.Length == flow.Configuration.Levels.Count, "Every configured level has one entrance");
+        for (int i = 0; i < doors.Length; i++)
+            for (int j = Mathf.Max(0, i - 3); j < i; j++)
+                if (doors[i].sprite == doors[j].sprite) throw new Exception("Repeated entrance within four doors");
+        MethodInfo move = GetMethod(map, "Move");
+        MethodInfo enter = GetMethod(map, "TryEnter");
+        var player = (RectTransform)route.Find("Explorer");
+        Require(Get<int>(map, "floor") == 0 && Mathf.Approximately(Get<float>(map, "cameraOffset"), 0f),
+            "Opening at the start frames the upper tiers");
+        for (int i = 0; i < doors.Length; i++)
+        {
+            int row = i / 3;
+            float direction = row % 2 == 0 ? 1f : -1f;
+            if (Get<int>(map, "floor") != row)
+            {
+                float fromY = player.anchoredPosition.y;
+                bool airborne = false;
+                for (int frame = 0; frame < 360 && Get<int>(map, "floor") != row; frame++)
+                {
+                    move.Invoke(map, new object[] { -direction, 1f / 60f });
+                    if (Get<int>(map, "floor") >= 0) continue;
+                    airborne = true;
+                    enter.Invoke(map, null);
+                    if (Get<int>(map, "entering") >= 0) throw new Exception("Entered a door in midair");
+                }
+                Require(airborne && Get<int>(map, "floor") == row && player.anchoredPosition.y < fromY,
+                    "Walking off the open end drops onto tier " + (row + 1));
+            }
+            for (int frame = 0; frame < 360 && Get<int>(map, "nearby") != i; frame++)
+                move.Invoke(map, new object[] { direction, 1f / 60f });
+            Require(Get<int>(map, "nearby") == i && Get<int>(map, "floor") == row
+                && doors[i].transform.Find("Number").GetComponent<TMP_Text>().text == i.ToString("00"),
+                "Walking reaches the matching numbered door " + i.ToString("00"));
+            if (!flow.SaveStore.IsUnlocked(flow.Configuration.Levels[i].id))
+            {
+                enter.Invoke(map, null);
+                if (Get<int>(map, "entering") >= 0) throw new Exception("Locked door accepted entry");
+            }
+        }
+        if (doors.Length > 12)
+        {
+            Require(Get<float>(map, "cameraOffset") > 0f, "Walking past door 11 scrolls down to the next tier");
+            Require(doors[12].gameObject.activeInHierarchy, "Door 12 remains part of the same route");
+        }
+        int lastTier = (doors.Length - 1) / 3;
+        if (lastTier >= 3)
+        {
+            float y = player.anchoredPosition.y;
+            for (int frame = 0; frame < 300; frame++) move.Invoke(map, new object[] { -1f, 1f / 60f });
+            Require(Get<int>(map, "floor") == lastTier && Mathf.Approximately(y, player.anchoredPosition.y),
+                "The final ledge catches and retains the explorer");
+        }
+        GetMethod(map, "ResetToStart").Invoke(map, null);
+        Require(Get<int>(map, "floor") == 0 && Get<int>(map, "nearby") < 0
+            && Mathf.Approximately(Get<float>(map, "cameraOffset"), 0f), "Reset returns the explorer and camera to the top");
+        string original = flow.SaveStore.Data.lastLevelId;
+        flow.SaveStore.Data.lastLevelId = flow.Configuration.Levels[doors.Length - 1].id;
+        ui.OpenLevelSelect();
+        Require(Get<int>(map, "nearby") == doors.Length - 1 && Get<int>(map, "floor") == lastTier,
+            "Reopening restores the last door on its tier");
+        flow.SaveStore.Data.lastLevelId = original;
+        ui.OpenLevelSelect();
+    }
+
     private static void TestAudio(GameFlowController flow)
     {
         AudioClip clip = AudioClip.Create("ValidationTone", 4410, 1, 44100, false);
@@ -317,18 +434,50 @@ public static class GameFlowValidation
 
     private static T Get<T>(object target, string name)
     {
-        return (T)target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);
+        return (T)GetField(target, name).GetValue(target);
+    }
+
+    private static FieldInfo GetField(object target, string name)
+    {
+        FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field == null) throw new Exception(target.GetType().Name + " is missing field " + name);
+        return field;
+    }
+
+    private static MethodInfo GetMethod(object target, string name)
+    {
+        MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method == null) throw new Exception(target.GetType().Name + " is missing method " + name);
+        return method;
+    }
+
+    private static Sprite GetSpriteField(object target, string name)
+    {
+        Sprite sprite = GetField(target, name).GetValue(target) as Sprite;
+        if (sprite == null) throw new Exception(target.GetType().Name + "." + name + " is not assigned");
+        return sprite;
     }
 
     private static void ClickPointer(GameInterfaceController ui, string path)
     {
+        Canvas.ForceUpdateCanvases();
         var target = ui.transform.Find(path).GetComponent<RectTransform>();
         var events = UnityEngine.EventSystems.EventSystem.current;
         var data = new UnityEngine.EventSystems.PointerEventData(events);
         data.position = RectTransformUtility.WorldToScreenPoint(null, target.TransformPoint(target.rect.center));
-        var hits = new List<UnityEngine.EventSystems.RaycastResult>();
-        events.RaycastAll(data, hits);
-        Require(hits.Count > 0 && hits[0].gameObject == target.gameObject, "Menu button is not blocked by another graphic");
+        Rect canvasPixels = target.GetComponentInParent<Canvas>().rootCanvas.pixelRect;
+        if (Mathf.RoundToInt(canvasPixels.width) == Screen.width
+            && Mathf.RoundToInt(canvasPixels.height) == Screen.height)
+        {
+            var hits = new List<UnityEngine.EventSystems.RaycastResult>();
+            events.RaycastAll(data, hits);
+            Require(hits.Count > 0 && hits[0].gameObject == target.gameObject,
+                path + " receives the pointer raycast at " + data.position + " (hit " + (hits.Count > 0 ? hits[0].gameObject.name : "nothing") + ")");
+        }
+        else
+        {
+            results.Add("SKIP " + path + " screen raycast: Game View and Screen sizes differ");
+        }
         UnityEngine.EventSystems.ExecuteEvents.Execute(target.gameObject, data, UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
         UnityEngine.EventSystems.ExecuteEvents.Execute(target.gameObject, data, UnityEngine.EventSystems.ExecuteEvents.pointerUpHandler);
         UnityEngine.EventSystems.ExecuteEvents.Execute(target.gameObject, data, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);

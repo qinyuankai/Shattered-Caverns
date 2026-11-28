@@ -19,9 +19,7 @@ public class GameInterfaceController : MonoBehaviour
     [SerializeField] private Image resultAccent;
     [SerializeField] private TMP_Text resultTitle;
     [SerializeField] private TMP_Text resultDescription;
-    [SerializeField] private TMP_Text levelTitle;
-    [SerializeField] private TMP_Text interactionHint;
-    [SerializeField] private TMP_Text fragmentProgress;
+    [SerializeField] private TMP_FontAsset levelNumberFont;
     [SerializeField] private TMP_Text message;
     [SerializeField] private TMP_Text masterValue;
     [SerializeField] private TMP_Text musicValue;
@@ -31,15 +29,17 @@ public class GameInterfaceController : MonoBehaviour
     [SerializeField] private Slider soundSlider;
     [SerializeField] private CanvasGroup transition;
     [SerializeField] private EventSystem eventSystem;
+    [SerializeField] private Sprite levelMapBackground;
+    [SerializeField] private Sprite levelTierBoard;
+    [SerializeField] private Sprite[] levelEntrances;
+    [SerializeField] private Sprite levelExplorer;
+    [SerializeField] private LevelSelectMap.Layout tierLayout = new LevelSelectMap.Layout();
 
     private GameFlowController flow;
     private LevelSelectMap levelSelectMap;
-    private LevelManager levelManager;
-    private PlayerChunkInteraction chunkInteraction;
     private GameObject activePanel;
     private Coroutine panelRevealRoutine;
     private float messageUntil;
-    private float nextHudRefresh;
 
     public void Initialize(GameFlowController controller)
     {
@@ -74,20 +74,12 @@ public class GameInterfaceController : MonoBehaviour
             else if (flow.State == GameFlowState.Paused) Resume();
         }
         if (activePanel == levelSelectPanel) levelSelectMap?.Update();
-        if (flow.CurrentLevel != null && Time.unscaledTime >= nextHudRefresh)
-        {
-            nextHudRefresh = Time.unscaledTime + 0.15f;
-            RefreshHud();
-        }
     }
 
     public void ShowScene(bool isLevel)
     {
-        levelManager = FindObjectOfType<LevelManager>();
-        chunkInteraction = FindObjectOfType<PlayerChunkInteraction>();
         hudPanel.SetActive(isLevel);
         SetPanel(isLevel ? null : mainMenuPanel);
-        if (isLevel) levelTitle.text = flow.CurrentLevel.displayName;
         RefreshState();
     }
 
@@ -139,51 +131,6 @@ public class GameInterfaceController : MonoBehaviour
         }
     }
 
-    private void RefreshHud()
-    {
-        if (chunkInteraction != null)
-        {
-            switch (chunkInteraction.CurrentState)
-            {
-                case PlayerChunkInteractionState.Placing:
-                    interactionHint.text = "放置区块    Q 逆时针 / E 顺时针 / R 切换 / F 确认 / X 取消";
-                    interactionHint.color = new Color(0.5f, 0.87f, 0.72f);
-                    break;
-                case PlayerChunkInteractionState.Removing:
-                    interactionHint.text = "拿下区块    F 确认  /  X 取消";
-                    interactionHint.color = new Color(0.91f, 0.66f, 0.29f);
-                    break;
-                case PlayerChunkInteractionState.Rotating:
-                    interactionHint.text = "原地旋转    Q 逆时针 / E 顺时针 / F 确认 / X 取消";
-                    interactionHint.color = new Color(0.5f, 0.87f, 0.72f);
-                    break;
-                default:
-                    interactionHint.text = chunkInteraction.IsPlayerFrozen
-                        ? "已冻结    F 旋转当前区块    Esc 暂停"
-                        : "A / D 移动    空格 跳跃    F 区块操作    Esc 暂停";
-                    interactionHint.color = new Color(0.78f, 0.86f, 0.84f);
-                    break;
-            }
-        }
-        else interactionHint.text = "";
-        if (levelManager == null)
-        {
-            fragmentProgress.text = "";
-            return;
-        }
-        var text = new System.Text.StringBuilder($"可用区块  {levelManager.AvailableChunks.Count}");
-        foreach (LevelChunkConfiguration item in levelManager.ChunkConfigurations)
-        {
-            if (item == null || item.chunk == null || !item.isMovable) continue;
-            int id = item.chunk.ChunkId;
-            string status = levelManager.IsChunkPlaced(id) ? "已放置"
-                : levelManager.IsChunkAvailable(id) ? "可放置"
-                : $"碎片 {levelManager.GetCollectedFragmentCount(id)}/{item.requiredFragmentCount}";
-            text.Append($"\n区块 {id:00}  ·  {status}");
-        }
-        fragmentProgress.text = text.ToString();
-    }
-
     public void StartGame() { ClickSound(); flow.StartGame(); }
     public void ContinueGame() { ClickSound(); flow.ContinueGame(); }
     public void RestartLevel() { ClickSound(); flow.RestartLevel(); }
@@ -195,9 +142,13 @@ public class GameInterfaceController : MonoBehaviour
     {
         ClickSound();
         if (levelSelectMap == null)
-            levelSelectMap = new LevelSelectMap(levelSelectPanel.transform, levelTitle.font, flow);
-        levelSelectMap.Open();
+        {
+            levelSelectMap = new LevelSelectMap((RectTransform)levelSelectPanel.transform, levelNumberFont,
+                flow, tierLayout, levelMapBackground, levelTierBoard, levelEntrances, levelExplorer);
+        }
         SetPanel(levelSelectPanel);
+        Canvas.ForceUpdateCanvases();
+        levelSelectMap.Open();
     }
 
     public void OpenSettings()

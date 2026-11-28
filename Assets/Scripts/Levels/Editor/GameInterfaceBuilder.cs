@@ -190,6 +190,8 @@ public static class GameInterfaceBuilder
         try
         {
             ApplyHudStyle(root.transform.Find("GameCanvas/GameHUD"));
+            ApplyLevelSelectStyle(root.transform.Find("GameCanvas/LevelSelectPanel"),
+                root.GetComponentInChildren<GameInterfaceController>(true));
             PrefabUtility.SaveAsPrefabAsset(root, path);
         }
         finally
@@ -668,40 +670,10 @@ public static class GameInterfaceBuilder
         hudImage.color = Color.clear;
         hudImage.raycastTarget = false;
 
-        Transform existingStatus = hud.Find("StatusCard");
-        GameObject status = existingStatus == null
-            ? new GameObject("StatusCard", typeof(RectTransform), typeof(Image))
-            : existingStatus.gameObject;
-        status.transform.SetParent(hud, false);
-        status.transform.SetAsFirstSibling();
-        RectTransform statusRect = status.GetComponent<RectTransform>();
-        statusRect.anchorMin = statusRect.anchorMax = statusRect.pivot = new Vector2(0f, 1f);
-        statusRect.anchoredPosition = new Vector2(28, -28);
-        statusRect.sizeDelta = new Vector2(390, 250);
-        Image statusImage = status.GetComponent<Image>();
-        statusImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.84f);
-        statusImage.raycastTarget = false;
-
-        Transform titleTarget = hud.Find("LevelTitle");
-        if (titleTarget != null)
+        foreach (string name in new[] { "StatusCard", "HintCard", "LevelTitle", "FragmentProgress", "InteractionHint" })
         {
-            Place(titleTarget.GetComponent<RectTransform>(), new Vector2(52, -48), new Vector2(320, 40), true);
-            TextMeshProUGUI title = titleTarget.GetComponent<TextMeshProUGUI>();
-            title.fontSize = 24;
-            title.fontStyle = FontStyles.Bold;
-            title.color = White;
-            title.alignment = TextAlignmentOptions.TopLeft;
-        }
-
-        Transform progressTarget = hud.Find("FragmentProgress");
-        if (progressTarget != null)
-        {
-            Place(progressTarget.GetComponent<RectTransform>(), new Vector2(52, -96), new Vector2(320, 160), true);
-            TextMeshProUGUI progress = progressTarget.GetComponent<TextMeshProUGUI>();
-            progress.fontSize = 17;
-            progress.lineSpacing = 8f;
-            progress.color = new Color(0.78f, 0.86f, 0.84f);
-            progress.alignment = TextAlignmentOptions.TopLeft;
+            Transform target = hud.Find(name);
+            if (target != null) Object.DestroyImmediate(target.gameObject);
         }
 
         Transform pauseTarget = hud.Find("PauseButton");
@@ -716,39 +688,44 @@ public static class GameInterfaceBuilder
             if (labelTarget != null)
             {
                 TextMeshProUGUI label = labelTarget.GetComponent<TextMeshProUGUI>();
-                label.text = "暂停    Esc";
-                label.fontSize = 18;
+                label.text = "暂停";
+                label.fontSize = 22;
                 label.color = White;
             }
         }
 
-        Transform existingHint = hud.Find("HintCard");
-        GameObject hintCard = existingHint == null
-            ? new GameObject("HintCard", typeof(RectTransform), typeof(Image))
-            : existingHint.gameObject;
-        hintCard.transform.SetParent(hud, false);
-        hintCard.transform.SetSiblingIndex(1);
-        RectTransform hintRect = hintCard.GetComponent<RectTransform>();
-        hintRect.anchorMin = hintRect.anchorMax = hintRect.pivot = new Vector2(0.5f, 0f);
-        hintRect.anchoredPosition = new Vector2(0, 26);
-        hintRect.sizeDelta = new Vector2(980, 52);
-        Image hintImage = hintCard.GetComponent<Image>();
-        hintImage.color = new Color(Ink.r, Ink.g, Ink.b, 0.8f);
-        hintImage.raycastTarget = false;
+    }
 
-        Transform hintTarget = hud.Find("InteractionHint");
-        if (hintTarget != null)
-        {
-            RectTransform hint = hintTarget.GetComponent<RectTransform>();
-            hint.anchorMin = hint.anchorMax = hint.pivot = new Vector2(0.5f, 0f);
-            hint.anchoredPosition = new Vector2(0, 26);
-            hint.sizeDelta = new Vector2(920, 48);
-            TextMeshProUGUI hintText = hintTarget.GetComponent<TextMeshProUGUI>();
-            hintText.fontSize = 18;
-            hintText.fontStyle = FontStyles.Bold;
-            hintText.alignment = TextAlignmentOptions.Center;
-            hintText.enableWordWrapping = false;
-        }
+    private static void ApplyLevelSelectStyle(Transform panel, GameInterfaceController ui)
+    {
+        Transform title = panel.Find("Title");
+        if (title != null) Object.DestroyImmediate(title.gameObject);
+        RectTransform back = (RectTransform)panel.Find("BackButton");
+        back.anchorMin = back.anchorMax = new Vector2(0.5f, 0.066f);
+        back.pivot = new Vector2(0.5f, 0.5f);
+        back.anchoredPosition = Vector2.zero;
+        back.sizeDelta = new Vector2(286f, 58f);
+        back.GetComponent<Button>().navigation = new Navigation { mode = Navigation.Mode.None };
+        TMP_Text label = back.Find("Label").GetComponent<TMP_Text>();
+        label.fontStyle = FontStyles.Normal;
+        label.fontSize = 30f;
+
+        const string art = "Assets/Art/UI/";
+        Assign(ui, "levelMapBackground", AssetDatabase.LoadAssetAtPath<Sprite>(art + "LevelSelectCorridorBackdrop.png"));
+        Assign(ui, "levelTierBoard", AssetDatabase.LoadAssetAtPath<Sprite>(art + "LevelSelectFourTierBoard.png"));
+        Assign(ui, "levelExplorer", AssetDatabase.LoadAssetAtPath<Sprite>(art + "LevelSelectExplorer.png"));
+        var mouths = new System.Collections.Generic.List<Sprite>();
+        foreach (Object asset in AssetDatabase.LoadAllAssetsAtPath(art + "LevelSelectCaveMouths.png"))
+            if (asset is Sprite mouth) mouths.Add(mouth);
+        mouths.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
+        SerializedObject serialized = new SerializedObject(ui);
+        SerializedProperty entrances = serialized.FindProperty("levelEntrances");
+        entrances.arraySize = mouths.Count;
+        for (int i = 0; i < mouths.Count; i++)
+            entrances.GetArrayElementAtIndex(i).objectReferenceValue = mouths[i];
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        Assign(ui, "levelNumberFont", AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
+            "Assets/Settings/TextMeshPro/Resources/Fonts & Materials/LiberationSans SDF.asset"));
     }
 
     private static void AfterPackageImport(string packageName)
@@ -818,16 +795,12 @@ public static class GameInterfaceBuilder
 
         GameObject hud = Panel(canvasObject.transform, "GameHUD", Color.clear);
         Assign(ui, "hudPanel", hud);
-        TextMeshProUGUI levelTitle = Text(hud.transform, "LevelTitle", "初探洞窟", new Vector2(40, -35), new Vector2(500, 45), 25, White, true);
-        Assign(ui, "levelTitle", levelTitle);
-        Button pause = Button(hud.transform, "PauseButton", "暂停  Esc", new Vector2(1320, -30), new Vector2(220, 48), ui.OpenPause, true);
+        Button pause = Button(hud.transform, "PauseButton", "暂停", new Vector2(1320, -30), new Vector2(220, 48), ui.OpenPause, true);
         RectTransform pauseRect = pause.GetComponent<RectTransform>();
         pauseRect.anchorMin = pauseRect.anchorMax = pauseRect.pivot = Vector2.one;
         pauseRect.anchoredPosition = new Vector2(-40, -30);
         pause.GetComponent<Image>().color = Surface;
-        Assign(ui, "fragmentProgress", Text(hud.transform, "FragmentProgress", "", new Vector2(40, -95), new Vector2(340, 240), 20, White, true));
-        TextMeshProUGUI hint = Text(hud.transform, "InteractionHint", "", new Vector2(0, -395), new Vector2(1200, 55), 20, Accent);
-        Assign(ui, "interactionHint", hint);
+        ApplyHudStyle(hud.transform);
 
         GameObject main = Panel(canvasObject.transform, "MainMenuPanel", Ink);
         Assign(ui, "mainMenuPanel", main);
@@ -843,9 +816,9 @@ public static class GameInterfaceBuilder
         ApplyMainMenuStyle(main.transform);
 
         GameObject levels = Panel(canvasObject.transform, "LevelSelectPanel", Ink);
-        Text(levels.transform, "Title", "选择关卡", new Vector2(0, 295), new Vector2(900, 80), 48, White);
         Button(levels.transform, "BackButton", "返回", new Vector2(0, -330), new Vector2(280, 55), ui.Back);
         Assign(ui, "levelSelectPanel", levels);
+        ApplyLevelSelectStyle(levels.transform, ui);
 
         GameObject settings = Page(canvasObject.transform, "SettingsPanel", "声音设置", "调整你的洞窟声景。设置会自动保留。", ui.Back);
         Assign(ui, "settingsPanel", settings);

@@ -56,6 +56,10 @@ public class GameFlowController : MonoBehaviour
         }
 
         Instance = this;
+#if UNITY_STANDALONE && !UNITY_EDITOR
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = 60;
+#endif
         DontDestroyOnLoad(gameObject);
         SaveStore = new GameSaveStore(configuration);
         audioPlayer.Initialize(SaveStore);

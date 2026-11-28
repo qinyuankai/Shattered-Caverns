@@ -333,12 +333,14 @@ Chunk
 - `MainMenuPanel/Background` 使用 `AspectRatioFitter.EnvelopeParent` 保持背景比例并裁切超出部分；背景和全屏遮罩均关闭 Raycast Target，不阻挡菜单按钮。
 - 主菜单标题使用保留原图比例的透明 Sprite `Assets/Art/UI/MainMenuTitle.png`。
 - 主菜单标题与开始、继续、选关居中排列，声音设置和退出分别锚定左下与右下。中央按钮共用切角木牌 Sprite，悬停及键盘选中使用带暖灯高光和碎片标记的 Sprite，按钮文字以实际字形的中线垂直居中，禁用继续时压暗，角落按钮使用文字颜色反馈，原有点击事件保持序列化绑定。
-- 选关由 `LevelSelectMap` 在 `LevelSelectPanel` 中生成 16×16 格的 uGUI 地图。地图运动使用不受时间缩放影响的 UI 坐标，与关卡物理独立。
-- 关卡门按配置顺序从 `00` 开始编号，每页最多 12 扇门，超过时使用 Page Up / Page Down 切换地图。门的颜色和进关权限读取现有存档，进门复用 `GameFlowController.LoadLevel`。
+- `LevelSelectMap` 在 `LevelSelectPanel/TierMap` 内裁切连续的多层路线，镜头随角色平滑下移。编号按关卡配置顺序逐层折返。落地、横移和镜头使用非缩放时间，只有角色站在对应层时才可进入洞口。
+- `GameApplication.prefab` 绑定外部洞窟背景、`LevelSelectFourTierBoard` 岩壁与石台素材、六个洞口 Sprite 和现有探险者。Tier Layout 的平台范围和表面高度以底图左下角为原点，运行时按关卡数拼接各层，最末层使用横贯地图的石台。
+- 门号从 `00` 起按关卡配置顺序生成。未解锁门降低亮度，已完成门带有金色标记；角色进入已解锁的洞口后调用 `GameFlowController.LoadLevel`。
 - 设置界面使用三个独立音量卡片展示标签、用途说明、滑轨与百分比；打开页面时以 `SetValueWithoutNotify` 同步存档值并默认聚焦总音量，从暂停状态进入和返回时保持全局暂停。
 - 暂停界面使用半透明全屏遮罩和居中内容卡片，继续操作为默认焦点，重新开始使用警示层级；界面只调用 `GameFlowController` 的暂停、恢复、重开和返回接口，不直接修改时间缩放。
 - 通关与失败继续共用 `ResultPanel`：控制器根据流程状态切换标题、说明和暖金/暖红强调色；有下一关时默认聚焦下一关，否则默认聚焦重试。
-- HUD 使用左上状态卡、右上暂停入口和底部操作提示条；普通、放置与拿下状态使用不同文字和强调色，仍以 0.15 秒间隔只读 `LevelManager` 与 `PlayerChunkInteraction`。
+- 选关顶部留空，门号使用 Liberation Sans SDF，返回按钮位于地图正下方。游玩 HUD 保留右上暂停按钮。
+- 独立桌面构建启动时关闭 VSync，目标帧率设为 60 FPS。
 - 主菜单、选关、设置、暂停和结果面板带 0.12 秒 unscaled-time 淡入；淡入不禁用交互，场景加载期间的输入屏蔽仍由 Loading 状态和 Transition CanvasGroup 负责。
 - 全局按钮统一 Hover、Selected、Pressed 和 Disabled 色彩反馈；Canvas 按 1600×900 高度适配，已覆盖 4:3、16:9、16:10 和约 21:9 比例。
 - 中文字体位于 `Assets/Settings/Fonts`，使用 Noto Sans SC，附带 OFL 许可；TMP 基础资源位于 `Assets/Settings/TextMeshPro`。
@@ -379,7 +381,6 @@ Chunk
 - 菜单暂停保留区块交互状态，继续时恢复到先前的操作。加载和结算期间保持暂停，区块操作取消后仍由当前全局状态决定是否恢复。
 - `PlayerChunkInteraction.Update` 在全局流程阻止输入时不读取操作键。
 - 新增 `CancelCurrentInteraction()` 接口，在通关、失败和切换场景前复用原有取消逻辑恢复预览与摄像机。
-- HUD 只读现有 `LevelManager` 与 `PlayerChunkInteraction`，不持有第二份背包／区块数据。
 
 ### 5.本地记录与音频
 
@@ -404,9 +405,9 @@ Chunk
 - `Tools > Shattered Caverns > Apply Settings Redesign` 通过 Unity API 将声音设置的卡片、滑轨、手柄、百分比和导航样式应用到现有 Prefab，不修改音频与存档架构。
 - `Tools > Shattered Caverns > Apply Pause Redesign` 通过 Unity API 将遮罩、中央卡片、按钮层级与提示信息应用到现有 Prefab，不修改暂停职责边界或区块交互代码。
 - `Tools > Shattered Caverns > Apply Result Redesign` 通过 Unity API 将结果遮罩、中央卡片、状态强调条和按钮层级应用到共用结果面板。
-- `Tools > Shattered Caverns > Apply HUD Redesign` 通过 Unity API 将状态卡、暂停入口和底部提示条应用到现有 HUD，不创建第二份玩法状态。
+- `Tools > Shattered Caverns > Apply HUD Redesign` 通过 Unity API 移除旧状态卡和操作提示条，更新暂停入口及选关文字。
 - `Tools > Shattered Caverns > Apply Interface Polish` 为五个主要面板配置 CanvasGroup，并统一按钮状态色和 CanvasScaler 适配设置。
-- `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置与 Build Settings，再在 Play Mode 中验证主菜单、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
+- `Tools > Shattered Caverns > Validate Game Flow` 先检查关卡配置、Build Settings 与 GameApplication 的选关 Sprite 引用，再在 Play Mode 中验证主菜单、选关运行时 Sprite、连续折返路线、逐层下落、下滚跟随与复位、门状态、入洞与返回、菜单焦点、设置保存、存档规范化、场景重载、暂停、区块操作暂停、流程触发器、结束界面、音频与继续游戏。
 - 验证报告输出到被忽略的 `Logs/GameFlowValidation.txt`；测试前备份该存档键，退出测试后恢复，不影响玩家进度。
 - 验证器临时允许后台运行，避免编辑器失去焦点时停止场景帧而导致超时。
-- 当前 macOS Editor 流程验证通过 36 项检查，并检查所有项目 Prefab 无 Missing Script；尚未验证 Windows 构建或正式音频听感。
+- 验证器检查所有项目 Prefab 无 Missing Script；实际通过项数以 `Logs/GameFlowValidation.txt` 为准，尚未验证 Windows 构建或正式音频听感。

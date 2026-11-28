@@ -1,230 +1,352 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 internal sealed class LevelSelectMap
 {
-    private const int GridSize = 16;
-    private const int DoorsPerFloor = 3;
-    private const int Floors = 4;
-    private const int DoorsPerPage = DoorsPerFloor * Floors;
-    private const float TileSize = 28f;
-    private const float DoorReach = 0.72f;
+    [System.Serializable]
+    internal struct Platform
+    {
+        public float left;
+        public float right;
+        public float surface;
 
-    private static readonly Color Gold = new Color(0.91f, 0.66f, 0.29f);
-    private static readonly Color Teal = new Color(0.42f, 0.82f, 0.74f);
-    private static readonly Color Muted = new Color(0.62f, 0.70f, 0.73f);
-    private static readonly Color Rock = new Color(0.26f, 0.31f, 0.34f);
+        public Platform(float left, float right, float surface)
+        {
+            this.left = left;
+            this.right = right;
+            this.surface = surface;
+        }
+    }
 
+    [System.Serializable]
+    internal sealed class Layout
+    {
+        [Min(1)] public float entranceWidth = 134f;
+        [Min(1)] public float walkSpeed = 205f;
+        [Min(1)] public float gravity = 950f;
+        public Platform[] platforms =
+        {
+            new Platform(6, 635, 574), new Platform(168, 806, 422),
+            new Platform(6, 635, 263), new Platform(6, 806, 94)
+        };
+    }
+
+    private const int DoorsPerRow = 3;
+    private const float ExplorerHeight = 58f;
+    private const float EntryDuration = 0.28f;
+    private static readonly Vector2 BottomCenter = new Vector2(0.5f, 0f);
     private readonly GameFlowController flow;
+    private readonly Layout layout;
+    private readonly RectTransform viewport;
+    private readonly RectTransform board;
+    private readonly RectTransform content;
     private readonly RectTransform player;
-    private readonly TMP_Text status;
-    private readonly TMP_Text hint;
-    private readonly Image[] doors = new Image[DoorsPerPage];
-    private readonly TMP_Text[] numbers = new TMP_Text[DoorsPerPage];
+    private readonly Platform[] platforms;
+    private readonly float initialTop;
+    private readonly float bottom;
+    private readonly Image[] doors;
+    private readonly TMP_Text[] numbers;
+    private readonly Image[] completionMarks;
+    private float cameraOffset;
+    private float cameraVelocity;
+    private int floor;
+    private int nearby = -1;
+    private int entering = -1;
+    private float entryTime;
     private float x;
     private float feet;
     private float fallSpeed;
-    private int page;
-    private int floor;
-    private int nearbyDoor = -1;
+    private float facing = 1f;
 
-    public LevelSelectMap(Transform parent, TMP_FontAsset font, GameFlowController flow)
+    public LevelSelectMap(RectTransform panel, TMP_FontAsset font, GameFlowController flow, Layout layout,
+        Sprite backdrop, Sprite mapArt, Sprite[] entrances, Sprite explorer)
     {
         this.flow = flow;
-        RectTransform frame = CreateImage(parent, "LevelMap", new Vector2(0, -30),
-            Vector2.one * (GridSize * TileSize + 6f), Rock).rectTransform;
-        RectTransform map = CreateImage(frame, "Cavern", Vector2.zero, Vector2.one * (GridSize * TileSize),
-            new Color(0.026f, 0.055f, 0.072f)).rectTransform;
+        this.layout = layout;
+        viewport = panel;
 
-        for (int row = 0; row < Floors; row++)
+        Image background = Picture(panel, "Backdrop", backdrop, Vector2.zero);
+        background.transform.SetAsFirstSibling();
+        AspectRatioFitter cover = background.gameObject.AddComponent<AspectRatioFitter>();
+        cover.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+        cover.aspectRatio = backdrop.rect.width / backdrop.rect.height;
+
+        Image frame = Picture(panel, "TierMap", null, mapArt.rect.size);
+        frame.color = new Color32(161, 112, 78, 255);
+        board = frame.rectTransform;
+        RectTransform window = Rect(board, "Window", Vector2.one * -6f);
+        window.anchorMin = Vector2.zero;
+        window.anchorMax = Vector2.one;
+        window.gameObject.AddComponent<RectMask2D>();
+        content = Rect(window, "Route", Vector2.zero);
+        content.anchorMin = content.anchorMax = content.pivot = Vector2.zero;
+
+        int count = flow.Configuration.Levels.Count;
+        platforms = new Platform[Mathf.Max(layout.platforms.Length, Mathf.CeilToInt(count / (float)DoorsPerRow))];
+        Rect artRect = mapArt.rect;
+        initialTop = artRect.height - 4f;
+        bottom = BuildTerrain(mapArt);
+        doors = new Image[count];
+        numbers = new TMP_Text[count];
+        completionMarks = new Image[count];
+        var variation = new System.Random(7549);
+        var recent = new Queue<int>();
+        var uses = new int[entrances.Length];
+        var candidates = new List<int>(entrances.Length);
+        for (int i = 0; i < count; i++)
         {
-            int left = LeftEdge(row);
-            int right = RightEdge(row);
-            for (int col = left; col < right; col++)
-                CreateImage(map, "PlatformTile", GridPosition(col + 0.5f, FloorY(row) + 0.5f),
-                    Vector2.one * (TileSize - 1f), Rock);
-
-            for (int slot = 0; slot < DoorsPerFloor; slot++)
+            int leastUsed = int.MaxValue;
+            candidates.Clear();
+            for (int j = 0; j < entrances.Length; j++)
             {
-                int index = row * DoorsPerFloor + slot;
-                Vector2 position = GridPosition(DoorX(index), FloorY(row)) + new Vector2(0, 19);
-                doors[index] = CreateImage(map, "Door", position, new Vector2(24, 38), Muted);
-                CreateImage(doors[index].transform, "DoorPanel", new Vector2(0, -1), new Vector2(18, 32),
-                    new Color(0.05f, 0.09f, 0.11f));
-                numbers[index] = CreateText(doors[index].transform, "Number", font, Vector2.zero,
-                    new Vector2(22, 26), 13);
+                if (recent.Contains(j) || uses[j] > leastUsed) continue;
+                if (uses[j] < leastUsed) candidates.Clear();
+                leastUsed = uses[j];
+                candidates.Add(j);
             }
+            int variant = candidates[variation.Next(candidates.Count)];
+            uses[variant]++;
+            recent.Enqueue(variant);
+            if (recent.Count > Mathf.Min(3, entrances.Length - 1)) recent.Dequeue();
+
+            Sprite mouth = entrances[variant];
+            float width = layout.entranceWidth * Mathf.Lerp(0.91f, 1.07f, (float)variation.NextDouble());
+            Vector2 size = new Vector2(width, width * mouth.rect.height / mouth.rect.width);
+            int row = i / DoorsPerRow;
+            int column = i % DoorsPerRow;
+            Platform ledge = layout.platforms[RoutePlatform(row)];
+            float along = (column + 0.68f) / (DoorsPerRow + 0.18f);
+            if (row % 2 == 1) along = 1f - along;
+            Image door = Picture(content, "Door_" + i.ToString("00"), mouth, size);
+            doors[i] = door;
+            RectTransform rect = door.rectTransform;
+            rect.anchorMin = rect.anchorMax = Vector2.zero;
+            rect.pivot = BottomCenter;
+            rect.anchoredPosition = new Vector2(Mathf.Lerp(ledge.left, ledge.right, along), platforms[row].surface);
+
+            TMP_Text label = Label(rect, "Number", font, new Vector2(44f, 32f), 24f);
+            label.rectTransform.anchorMin = label.rectTransform.anchorMax = BottomCenter;
+            label.rectTransform.anchoredPosition = new Vector2(width * 0.45f + 9f, 17f);
+            label.text = i.ToString("00");
+            numbers[i] = label;
+            Image mark = Picture(label.transform, "Completed", null, new Vector2(6f, 10f));
+            mark.rectTransform.anchoredPosition = new Vector2(0f, 19f);
+            mark.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -32f);
+            mark.color = new Color32(255, 202, 114, 255);
+            completionMarks[i] = mark;
         }
 
-        player = CreateImage(map, "Explorer", Vector2.zero, new Vector2(16, 13), Teal).rectTransform;
-        CreateImage(player, "Head", new Vector2(0, 10), new Vector2(12, 10), new Color(0.92f, 0.86f, 0.71f));
-        CreateImage(player, "Face", new Vector2(1, 10), new Vector2(7, 2), Rock);
-        status = CreateText(parent, "DoorStatus", font, new Vector2(0, -272), new Vector2(720, 32), 20);
-        hint = CreateText(parent, "MapControls", font, new Vector2(0, 225), new Vector2(900, 40), 20);
+        player = Picture(content, "Explorer", explorer,
+            new Vector2(ExplorerHeight * explorer.rect.width / explorer.rect.height, ExplorerHeight)).rectTransform;
+        player.anchorMin = player.anchorMax = Vector2.zero;
+        player.pivot = BottomCenter;
+    }
+
+    private int RoutePlatform(int row)
+    {
+        if (row == 0) return 0;
+        return row % 2 == 0 ? 2 : 1;
+    }
+
+    private float BuildTerrain(Sprite art)
+    {
+        const float bandHeight = 160f;
+        const float belowSurface = 54f;
+        const float inset = 4f;
+        Platform[] samples = layout.platforms;
+        Rect rect = art.rect;
+        Texture texture = art.texture;
+        float interiorWidth = rect.width - 2f * inset;
+        float top = initialTop;
+        for (int row = 0; row < platforms.Length; row++)
+        {
+            bool last = row == platforms.Length - 1;
+            Platform sample = samples[last ? samples.Length - 1 : RoutePlatform(row)];
+            float sourceTop = row == 0 && !last ? initialTop : sample.surface + bandHeight - belowSurface;
+            float sourceBottom = last ? inset : sample.surface - belowSurface;
+            float height = sourceTop - sourceBottom;
+            float surface = top - (sourceTop - sample.surface);
+            platforms[row] = new Platform(sample.left, sample.right, surface);
+
+            RectTransform band = Rect(content, "RockTier_" + (row + 1), new Vector2(interiorWidth, height));
+            band.anchorMin = band.anchorMax = band.pivot = Vector2.zero;
+            band.anchoredPosition = new Vector2(inset, top - height);
+            RawImage rock = band.gameObject.AddComponent<RawImage>();
+            rock.texture = texture;
+            rock.uvRect = new Rect((rect.x + inset) / texture.width, (rect.y + sourceBottom) / texture.height,
+                interiorWidth / texture.width, height / texture.height);
+            rock.raycastTarget = false;
+            top -= height;
+        }
+        return top;
     }
 
     public void Open()
     {
-        page = 0;
-        ShowPage();
+        int last = -1;
+        nearby = entering = -1;
+        for (int i = 0; i < doors.Length; i++)
+        {
+            StyleDoor(i, false);
+            if (flow.Configuration.Levels[i].id == flow.SaveStore.Data.lastLevelId) last = i;
+        }
+        FitBoard();
+        if (last < 0) ResetToStart();
+        else Place(doors[last].rectTransform.anchoredPosition.x, last / DoorsPerRow);
+    }
+
+    private void FitBoard()
+    {
+        float scale = Mathf.Min(viewport.rect.width / (board.sizeDelta.x + 44f), viewport.rect.height / 941f);
+        board.localScale = new Vector3(scale, scale, 1f);
+        board.anchoredPosition = new Vector2(0f, viewport.rect.height * 0.012f);
+    }
+
+    private void ResetToStart() => Place(platforms[0].left + 47f, 0);
+
+    private void Follow(float dt)
+    {
+        float visibleHeight = board.sizeDelta.y - 6f;
+        float start = initialTop - visibleHeight;
+        float target = Mathf.Clamp(start + visibleHeight * 0.42f - feet, 0f, Mathf.Max(0f, start - bottom));
+        if (dt > 0f)
+            cameraOffset = Mathf.SmoothDamp(cameraOffset, target, ref cameraVelocity, 0.12f, Mathf.Infinity, dt);
+        else
+        {
+            cameraOffset = target;
+            cameraVelocity = 0f;
+        }
+        content.anchoredPosition = new Vector2(-3f, cameraOffset - start);
+    }
+
+    private void Place(float startX, int row)
+    {
+        x = startX;
+        feet = platforms[row].surface;
+        floor = row;
+        fallSpeed = 0f;
+        facing = 1f;
+        Move(0f, 0f);
     }
 
     public void Update()
     {
-        int pages = Mathf.Max(1, Mathf.CeilToInt(flow.Configuration.Levels.Count / (float)DoorsPerPage));
-        if (Input.GetKeyDown(KeyCode.PageDown) && page + 1 < pages)
+        FitBoard();
+        float dt = Time.unscaledDeltaTime;
+        if (entering >= 0)
         {
-            page++;
-            ShowPage();
+            AdvanceEntry(dt);
+            return;
         }
-        else if (Input.GetKeyDown(KeyCode.PageUp) && page > 0)
-        {
-            page--;
-            ShowPage();
-        }
-        if (Input.GetKeyDown(KeyCode.R)) ResetExplorer();
 
+        if (Input.GetKeyDown(KeyCode.R)) ResetToStart();
         bool left = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
         bool right = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
-        Move((right ? 1 : 0) - (left ? 1 : 0), Mathf.Min(Time.unscaledDeltaTime, 0.05f));
-
-        int door = FindNearbyDoor();
-        if (door != nearbyDoor) SetNearbyDoor(door);
-        if (door < 0 || !Input.GetKeyDown(KeyCode.F)) return;
-
-        GameLevelDefinition level = flow.Configuration.Levels[page * DoorsPerPage + door];
-        if (!flow.SaveStore.IsUnlocked(level.id)) return;
-        flow.AudioPlayer.PlaySound(flow.Configuration.ButtonSound);
-        flow.LoadLevel(level.id);
+        Move((right ? 1 : 0) - (left ? 1 : 0), Mathf.Min(dt, 0.1f));
+        if (Input.GetKeyDown(KeyCode.F)) TryEnter();
     }
 
-    private void ShowPage()
+    private void Move(float direction, float dt)
     {
-        int count = flow.Configuration.Levels.Count;
-        int pages = Mathf.Max(1, Mathf.CeilToInt(count / (float)DoorsPerPage));
-        hint.text = "A / D 或方向键移动    F 进门    R 回到起点";
-        if (pages > 1) hint.text += $"    PgUp / PgDn 翻页  {page + 1}/{pages}";
-        for (int slot = 0; slot < doors.Length; slot++)
-        {
-            int index = page * DoorsPerPage + slot;
-            doors[slot].gameObject.SetActive(index < count);
-            if (index >= count) continue;
-            numbers[slot].text = $"{index:00}";
-            StyleDoor(slot, false);
-        }
-        ResetExplorer();
-    }
-
-    private void ResetExplorer()
-    {
-        x = 1f;
-        feet = 1.25f;
-        fallSpeed = 0f;
+        if (direction != 0f) facing = Mathf.Sign(direction);
+        float margin = player.sizeDelta.x * 0.5f + 6f;
+        x = Mathf.Clamp(x + direction * layout.walkSpeed * dt, margin, board.sizeDelta.x - margin);
+        float nextFeet = feet - fallSpeed * dt - 0.5f * layout.gravity * dt * dt;
+        fallSpeed += layout.gravity * dt;
         floor = -1;
-        player.anchoredPosition = GridPosition(x, feet) + Vector2.up * 6.5f;
-        SetNearbyDoor(-1);
-    }
-
-    private void Move(float direction, float deltaTime)
-    {
-        x = Mathf.Clamp(x + direction * 5f * deltaTime, 0.35f, GridSize - 0.35f);
-        fallSpeed += 26f * deltaTime;
-        float nextFeet = feet + fallSpeed * deltaTime;
-        floor = -1;
-        for (int row = 0; row < Floors; row++)
+        for (int row = 0; row < platforms.Length; row++)
         {
-            float top = FloorY(row);
-            if (feet > top || nextFeet < top || x < LeftEdge(row) || x >= RightEdge(row)) continue;
-            nextFeet = top;
-            fallSpeed = 0;
+            Platform ledge = platforms[row];
+            if (feet < ledge.surface || nextFeet > ledge.surface || x < ledge.left || x > ledge.right) continue;
+            nextFeet = ledge.surface;
+            fallSpeed = 0f;
             floor = row;
             break;
         }
         feet = nextFeet;
-        player.anchoredPosition = GridPosition(x, feet) + Vector2.up * 6.5f;
-    }
+        player.anchoredPosition = new Vector2(x, feet);
+        player.localScale = new Vector3(facing, 1f, 1f);
 
-    private int FindNearbyDoor()
-    {
-        if (floor < 0) return -1;
-        for (int slot = floor * DoorsPerFloor; slot < (floor + 1) * DoorsPerFloor; slot++)
-            if (doors[slot].gameObject.activeSelf && Mathf.Abs(x - DoorX(slot)) <= DoorReach)
-                return slot;
-        return -1;
-    }
-
-    private void SetNearbyDoor(int slot)
-    {
-        if (nearbyDoor >= 0 && doors[nearbyDoor].gameObject.activeSelf)
-            StyleDoor(nearbyDoor, false);
-        nearbyDoor = slot;
-        if (slot < 0)
+        Follow(dt);
+        int closest = -1;
+        if (floor >= 0)
         {
-            status.text = flow.Configuration.Levels.Count == 0 ? "暂无关卡" : "走到门前查看关卡";
-            return;
+            int first = floor * DoorsPerRow;
+            for (int i = first; i < Mathf.Min(first + DoorsPerRow, doors.Length); i++)
+            {
+                if (Mathf.Abs(x - doors[i].rectTransform.anchoredPosition.x) > doors[i].rectTransform.sizeDelta.x * 0.22f) continue;
+                closest = i;
+                break;
+            }
         }
-        StyleDoor(slot, true);
-        int index = page * DoorsPerPage + slot;
-        GameLevelDefinition level = flow.Configuration.Levels[index];
-        string action = !flow.SaveStore.IsUnlocked(level.id) ? "未解锁"
-            : flow.SaveStore.IsCompleted(level.id) ? "已通关 · 按 F 重玩" : "按 F 进入";
-        status.text = $"{index:00}  {level.displayName}    {action}";
+        if (closest == nearby) return;
+        if (nearby >= 0) StyleDoor(nearby, false);
+        nearby = closest;
+        if (nearby >= 0) StyleDoor(nearby, true);
     }
 
-    private void StyleDoor(int slot, bool nearby)
+    private void StyleDoor(int index, bool focus)
     {
-        string id = flow.Configuration.Levels[page * DoorsPerPage + slot].id;
+        string id = flow.Configuration.Levels[index].id;
         bool unlocked = flow.SaveStore.IsUnlocked(id);
-        Color color = !unlocked ? Muted : nearby || flow.SaveStore.IsCompleted(id) ? Gold : Teal;
-        doors[slot].color = Color.Lerp(new Color(0.10f, 0.15f, 0.17f), color, nearby ? 1f : 0.72f);
-        numbers[slot].color = color;
+        doors[index].color = !unlocked ? new Color32(169, 155, 154, 255)
+            : focus ? Color.white : new Color32(223, 210, 195, 255);
+        numbers[index].color = !unlocked ? new Color32(186, 174, 164, 255)
+            : focus ? new Color32(255, 223, 157, 255) : new Color32(244, 217, 180, 255);
+        completionMarks[index].gameObject.SetActive(flow.SaveStore.IsCompleted(id));
     }
 
-    private static int FloorY(int row) => 3 + row * 4;
-    private static int LeftEdge(int row) => row == Floors - 1 || row % 2 == 0 ? 0 : 5;
-    private static int RightEdge(int row) => row == Floors - 1 || row % 2 == 1 ? GridSize : 11;
-
-    private static float DoorX(int index)
+    private void TryEnter()
     {
-        int row = index / DoorsPerFloor;
-        float fromSide = 2.5f + index % DoorsPerFloor * 3f;
-        return row % 2 == 0 ? fromSide : GridSize - fromSide;
+        if (nearby < 0 || !flow.SaveStore.IsUnlocked(flow.Configuration.Levels[nearby].id)) return;
+        entering = nearby;
+        entryTime = 0f;
+        flow.AudioPlayer.PlaySound(flow.Configuration.ButtonSound);
     }
 
-    private static Vector2 GridPosition(float column, float row)
+    private void AdvanceEntry(float dt)
     {
-        return new Vector2(column - GridSize / 2f, GridSize / 2f - row) * TileSize;
+        entryTime += dt;
+        float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(entryTime / EntryDuration));
+        float scale = Mathf.Lerp(1f, 0.64f, t);
+        player.localScale = new Vector3(facing * scale, scale, 1f);
+        Vector2 mouth = doors[entering].rectTransform.anchoredPosition;
+        player.anchoredPosition = Vector2.Lerp(new Vector2(x, feet), mouth + Vector2.up * 12f, t);
+        if (entryTime < EntryDuration) return;
+        int index = entering;
+        entering = -1;
+        flow.LoadLevel(flow.Configuration.Levels[index].id);
     }
 
-    private static RectTransform CreateRect(Transform parent, string name, Vector2 position, Vector2 size)
+    private static TMP_Text Label(Transform parent, string name, TMP_FontAsset font, Vector2 size, float fontSize)
+    {
+        TMP_Text label = Rect(parent, name, size).gameObject.AddComponent<TextMeshProUGUI>();
+        label.font = font;
+        label.fontSize = fontSize;
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontStyle = FontStyles.Normal;
+        label.enableWordWrapping = false;
+        label.color = new Color32(242, 215, 180, 255);
+        label.raycastTarget = false;
+        return label;
+    }
+
+    private static RectTransform Rect(Transform parent, string name, Vector2 size)
     {
         RectTransform rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
         rect.SetParent(parent, false);
-        rect.anchoredPosition = position;
         rect.sizeDelta = size;
+        rect.anchoredPosition = Vector2.zero;
         return rect;
     }
 
-    private static Image CreateImage(Transform parent, string name, Vector2 position, Vector2 size, Color color)
+    private static Image Picture(Transform parent, string name, Sprite sprite, Vector2 size)
     {
-        Image image = CreateRect(parent, name, position, size).gameObject.AddComponent<Image>();
-        image.color = color;
+        Image image = Rect(parent, name, size).gameObject.AddComponent<Image>();
+        image.sprite = sprite;
         image.raycastTarget = false;
         return image;
-    }
-
-    private static TMP_Text CreateText(Transform parent, string name, TMP_FontAsset font, Vector2 position,
-        Vector2 size, float fontSize)
-    {
-        TMP_Text text = CreateRect(parent, name, position, size).gameObject.AddComponent<TextMeshProUGUI>();
-        text.font = font;
-        text.fontSize = fontSize;
-        text.alignment = TextAlignmentOptions.Midline;
-        text.color = Muted;
-        text.enableWordWrapping = false;
-        text.overflowMode = TextOverflowModes.Ellipsis;
-        text.raycastTarget = false;
-        return text;
     }
 }
